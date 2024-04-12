@@ -6,8 +6,8 @@ Created on Wed Nov 15 10:16:36 2023
 
 @author: smith
 """
-import logger
-mylogger=logger.mlogger("main.log")
+import utils
+mylogger=utils.mlogger("main.log")
 log=mylogger.log
 
 import random 
@@ -17,7 +17,6 @@ import os
 import sys
 import time
 
-sys.setrecursionlimit(40000)
 
 
 random.seed(0)
@@ -56,19 +55,6 @@ class RandomWalker():
 def MPI_runner(params):
     pass
     
-        
-class ResultWriter():
-    def __init__(self,logfile):
-        self.logfile=logfile
-    def write(self,result,systparams=[]):
-        if(not os.path.exists(self.logfile)):
-            f=open(self.logfile,"w+")
-            f.write("")
-            f.close()
-        f=open(self.logfile,"a")
-        f.write(json.dumps(result)+"\n")
-        f.close()
-
         
 
 def check_conv(past,fn,conv_thresh=0.001):

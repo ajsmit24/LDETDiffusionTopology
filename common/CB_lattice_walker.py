@@ -11,81 +11,138 @@ import random
 import time
 import argparse
 import platform
-
+import sys
 
 #custom import of my own code
 import oop_cablebacteria_constructor
+import utils
 ##potentially depreciated custom code
 import old_random_walker
-import logger
 
-mylogger=logger.mlogger("main.log")
+mylogger=utils.mlogger("main.log")
 log=mylogger.log
 
+#note that this method is only preprocessing for CB relevant graphs
 class GraphPreprocess():
-    def __init__(self,nfiber,njunctions,random_particle_init=False,j_inter_nodes=1):
+    #j_inter_nodes is the number of nodes to insert between two junctions in the minimal topology
+    ##model (the circuits based graphs) this defines the CG scale
+    def __init__(self,nfiber,njunctions,random_particle_init=False,j_inter_nodes=1,allow_warnings=True):
         self.nfiber=nfiber
         self.njunctions=njunctions
         self.random_particle_init=random_particle_init
         self.j_inter_nodes=j_inter_nodes
+        self.allow_warnings=allow_warnings
         
         self.all_junction_related_nodes=[]
         self.fibers=None
         self.juncts=None
+        self.recursion_limit_updated=False
         if(self.nfiber==3):
             raise Exception("Can not conclusively determine junction nodes when nfiber=3")
-        
+            
+    #__fiber_find_helper/find_fibers often even when well behaved exceed the recursion limit so
+    ##we have to change the limit
+    def update_recursion_limit(self):
+        sys.setrecursionlimit(40000)
+        self.recursion_limit_updated=True
+
+    #note that here the start and stop are NOT the ends of the CB
+    ##rather they are the edges of a single topology element 
+    ##for example the nodes defining a singl einter-junction fiber segment
+    #used mostly for adjusting scales of CG - this is actually fairly generic and future classes
+    ##will likely copy from this
     def insert_n_nodes(self,graph,start_node,stop_node,n,mode="none"):
+        #We need to remove the existing connection between the edges in order to create a new one
+        #this helps us to avoid the following situation
+        ##S---E should become S---X---X---X---E but would instead erroneously be
+        ##-----------------
+        ##|               |
+        ##S---X---X---X---E Thus still having a single hop connection between S and E
         graph.remove_edge(start_node,stop_node)
+        #get the maximum node number to help us keep number consistent
         last_node_num=max([n for n in graph.nodes if type(n)==int])
+        #starting is actually an itterator changed in the loop so we use a new variable to 
+        ##perserve information
         starting=start_node
         for i in range(n):
+            #create a new node number
             new_node_number=last_node_num+1+i
+            #link that new node to the previous one
             graph.add_edge(starting, new_node_number)
             if(i==n-1):
+                #if this is the last one also connect it to the end
                 graph.add_edge(new_node_number,stop_node)
             if(mode=="junct"):
+                #if we are working on a CB junction then keep track of which junctions
+                #the new nodes correspond to
                 self.all_junction_related_nodes.append(new_node_number)
-                
+            #update what the "previous" node was
             starting=new_node_number
 
     def find_junction_nodes(self,graph):
         juncts=[]
+        #if this has already been done dont do it again
         if(self.juncts!=None):
             return self.juncts
         for n in graph.nodes:
+            #this degree condition defines what is to be a junction in most* cases
             if(graph.degree[n]==self.nfiber):
                 juncts.append(n)
+        #in some cases I want a more extensive list of non-fiber cells
         self.all_junction_related_nodes=juncts
         self.jucts=juncts
         return juncts
     
+    #NOTE this is "__" method calling it directly may have unexpected affects
+    ##It should generally be called from find_fibers
+    #d is the current recursion depth which is usefull for debugging
     def __fiber_find_helper(self,nextnode,prev,graph,endnode="G",d=0):
+        #this method is recursive and is can recure very deeply - often beyond the
+        ## system limit - so we need to update it (but only at the top level call)
+        if(d==0 and not self.recursion_limit_updated):
+            self.update_recursion_limit()
+        #this is the basecase as it is the end of the fiber and recursion used list concatination
         if(nextnode==endnode):
             return []
         else:
             for n in graph.neighbors(nextnode):
+                #make sure we are iterating down the fiber and not traversing junctions
+                #NOTE find_fibers alters all_junction_related_nodes so it does not contain
+                ##the starting and ending nodes 
                 if(n!=prev and (n not in self.all_junction_related_nodes)):
+                    #recure and traverse further
                     return [n]+self.__fiber_find_helper(n,nextnode,graph,d=d+1)
-        print("MAL RETURN ")
+        if(self.allow_warnings):
+            print("WARNING: in __fiber_find_helper - MAL RETURN ")
+        else:
+            raise Exception("WARNING-ERROR: in __fiber_find_helper - MAL RETURN ")
+    
+    #highly reliant on calling __fiber_find_helper
     def find_fibers(self,graph,juncts):
+        #do not recalculate if already stored
         if(self.fibers!=None):
            return self.fibers
+        #find all junctions except start and end
         self.all_junction_related_nodes=[jn for jn in self.all_junction_related_nodes if(jn!="G" and jn!=1)]
+        #start looking for fibers allong eahc of the spokes of the first junction
         fibers=[[n] for n in graph.neighbors(1) if (n!='G' and n!=0)]
         for i in range(len(fibers)):
             fibers[i]+=self.__fiber_find_helper(fibers[i][0],1,graph)
         self.fibers=fibers
         return fibers
+    #linearizes CB
     def delete_other_fibers(self,graph):
         juncts=self.find_junction_nodes(graph)
         fibers=self.find_fibers(graph,juncts)
+        #removes all fiber nodes except the zeroth fiber and the start and end nodes also remain
         for i in range(len(fibers)):
            if(i!=0):
                for j in range(len(fibers[i])):
                    if(j!=0 and j!=len(fibers[i])-1):
                       graph.remove_node(fibers[i][j])
         self.fibers=[fibers[0]]
+    #CB from the circuit generator have a circuit closing connector node that is general node 0
+    #this is not appropriate for this hopping model so it is removed
     def remove_connector(self,graph,connector=0):
         graph.remove_node(connector)
     
@@ -133,16 +190,12 @@ class Handler():
         self.j_inter_nodes=j_inter_nodes
     
     def do_one_round(self,bridged=True):
-        #print(self.nfiber,self.njuctions)
         cb=oop_cablebacteria_constructor.CableBacteria(self.nfiber,self.njuctions,bridged=bridged)
         cb.to_graph()
         gp=GraphPreprocess(self.nfiber,self.njuctions,j_inter_nodes=self.j_inter_nodes)
         gp.do_setup(cb.graph)
         rw=old_random_walker.RandomWalker(cb.graph,max_steps=self.max_steps,particle_initial_pos=self.particle_initial_pos)
         rw.run_random_walk()
-        #print("-"*10+"Path length"+"-"*10)
-        #rw.print_outcome()
-        #print("linear length:",self.lin_path_len)
         return rw.total_steps
         
     def run_many(self):
@@ -219,10 +272,10 @@ def CB_argparser():
     past_res=[]
     init_size=n
     fn=sub_script.split(".")[0]+".out"
-    rw=ResultWriter(fn)
+    rw=utils.ResultWriter(fn)
     h=Handler(f,j,n,rw,max_steps=1e12,j_inter_nodes=cof_scale)
     log(fn)
-    infologger=logger.mlogger(sub_script.split(".")[0]+".info")
+    infologger=utils.mlogger(sub_script.split(".")[0]+".info")
     start=time.time()
     infologger.log("Start:"+str(start))
     while(not is_conv):
