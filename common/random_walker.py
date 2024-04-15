@@ -15,46 +15,132 @@ import random
 random.seed(0)
    
 class RandomWalker():
-    def __init__(self,graph,max_steps=100000,endnode="G",particle_initial_pos=None,
-                 options={"periodic":True,"distance":"euclidean"}):
+    #note endnode and maxsteps should not be used and are only here for
+    ##backwards compatibility
+    def __init__(self,graph,particle_initial_pos=None,cutoff={},
+                 options={"periodic":True,"distance":"euclidean"},endnode="G",max_steps=1e94):
+       
+        #validation of input parameters
+        self.valid_options={"options[graphType]":
+                            ["defualt",#any graph other than those listed below
+                             "lattice",#any graph with tuple node labels but designed for
+                             ##those specifed in integer_dimension_lattice
+                             #"options[latticeObj]" required for lattice graphs generally a 
+                             ##integer_dimension_lattice object
+                             ##please see ~~latticeObj option handling~~ for greater detail
+                             "dynamic_deterimination"#default value of the parameter - attempts to determine
+                             #graph type based on the data type of node labels
+                                ],
+                            "options[periodic]":[True], #based on the idea that somethings may change
+                            #-particularly distance measurement-change on a peroidic graph
+                            #this is currently not used see ~~peroidic option handling~~
+                            "options[distance]":["euclidean"],#
+                            }
+        
         self.graph=graph
         self.particle_location=particle_initial_pos
         self.max_steps=int(max_steps)
         self.endnode=endnode
         self.total_steps=0
         
+        
+        
         if("periodic" not in options):
             options["periodic"]=True
         if("distance" not in options):
             options["distance"]="euclidean"
+        if("suppress_err" not in options):
+            options["suppress_err"]=[]
+        if("graphType" not in options):
+            options["graphType"]="dynamic_deterimination"
             
         self.periodic=options["periodic"]
         self.distance_mode=options["distance"]
+        self.graphType=options["graphType"]
         self.options=options
         
-        if(not self.periodic and 
-           not ("suppress_warn" in self.options and "peroidic" in self.options["suppress_warn"])):
+        #~~peroidic option handling~~
+        if(self.valid_options["options[periodic]"] and 
+           not ("peroidic" in self.options["suppress_err"])):
                 raise Exception("ERROR:Implemented behavior is constistent for both graphs with "+
-                                "edges that create a peroidic boundary and graphs that are truely "+
+                                "edges that create a peroidic boundary and graphs that are truly "+
                                 "finite. It is not clear what behavior you expect to differ by "+
                                 "setting peroidic=False, but this error can be suppressed by "+
-                                "passing options['suppress_warn']=['peroidic']. Please review the "+
+                                "passing options['suppress_err']=['peroidic']. Please review the "+
                                 "code in the random walker file before doing so. To get there "+
                                 "follow the stack trace for this error")
+        if(self.distance_mode not in self.valid_options["options[distance]"]):
+            raise Exception("ERROR: other distances metrics have have not been implemented")
+        if(self.graphType=="dynamic_deterimination"):
+            self.graphTyp=RandomWalker.determine_graph_type(self.graph)
+        
+        #~~latticeObj option handling~~
+        if("latticeObj" not in self.options):
+            raise Exception("ERROR: options['latticeObj'] required for graph type lattice. Please "+
+                            "note that latticeObj must have a .dimensions member that is a list "+
+                            "describing the length of all dimensions. Most importantly this includes "+
+                            "the finite length representing periodic dimensions as this is required "+
+                            "to compute pbc corrected positions.")
 
-
-        self.abs_displacement=0
+        
+        self.pbc_passes=[]
         if(particle_initial_pos==None):
             self.particle_location=self.find_initial_particle
+        self.starting_position=self.particle_location
+        self.particle_pos_pbc_corrected=self.particle_location
+       
+    def determine_graph_type(graph):
+        n=list(graph.nodes)[0]
+        if(type(n)==tuple):
+            return "lattice"
+        else:
+            return "default"
+        
         
     def find_initial_particle(self):
-        pass
+        raise Exception("ERROR: method find_initial_particle has not been implemented")
+    
+    #NOTE away to determine if an edge is a pbc edge all dimensions will be the same
+    ##except one dimension will differ and that difference will be greater than 1
+    ##this condition works for simple uniform integer dimension lattices
+    def compute_distance(self,old_point,new_point):
+        raise Exception("ERROR: method compute_distance not implemented")            
+            
+    def __step_account_for_pbc(self,old_point,new_point):
+        if(self.graphTyp=="lattice"):
+            if(self.pbc_passes==[]):
+                self.pbc_passes=[0]*len(old_point)
+            new_pos_pbc_cor=new_point
+            for i in range(len(old_point)):
+                #NOTE the order of this subtraction is important
+                ##it is key for deteriming the sign of the change in pbc_passes
+                pos_dif=new_point[i]-old_point[i]
+                if(abs(pos_dif)>1):
+                    if(pos_dif<0):
+                        self.pbc_passes[i]-=1
+                    else:
+                        self.pbc_passes[i]+=1
+            for i in range(len(new_pos_pbc_cor)):
+                new_pos_pbc_cor[i]+=self.pbc_passes[i]*self.options["latticeObj"].dimensions[i]
+            return new_pos_pbc_cor
+        else:
+            if("pbc_account_step" not in self.options["suppress_err"]):
+                raise Exception("ERROR: PBC accounting for non-lattice graphs is not currently supported. "+
+                                "Please consider modifying your local version of this file to include the "+
+                                "necissary functionality. This error can also be suppressed by "+
+                                "passing options['suppress_err']=['pbc_account_step']. Note that suppression "+
+                                "results in this method simply returning the new position with no pbc correction. "+
+                                "Follow the stack trace to this position in the source and the constructor for "+
+                                "more details.")
+            return new_point
+            
     
     def step(self):
         pos_steps=[n for n in self.graph.neighbors(self.particle_location)]
         new_position=random.sample(pos_steps,1)[0]
         self.graph.nodes[self.particle_location]["occ"]=0
         self.graph.nodes[new_position]["occ"]=1
+        self.particle_pos_pbc_corrected=self.__step_account_for_pbc( self.particle_location,new_position)
         self.particle_location=new_position
         self.total_steps+=1
     
@@ -64,7 +150,10 @@ class RandomWalker():
             self.step()
             if(self.particle_location==self.endnode):
                 return
-        print("PASSED MAX STEPS")
+        if("max_step" not in self.options["suppress_err"]):
+            raise Exception("ERROR:exceeded max steps in random walk")
+        else:
+            print("WARN:exceeded max steps in random walk")
     
     def print_outcome(self):
         print(self.total_steps)

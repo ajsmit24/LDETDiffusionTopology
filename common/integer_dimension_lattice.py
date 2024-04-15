@@ -29,8 +29,6 @@ class UniformNDLatticeConstructor():
     def draw(self):
         nx.draw(self.graph, with_labels = True)
         
-    def determin_displacement(self,current_node,next_node):
-
     #starting_surface assumes the direction of flow will be that with the largest dimension
     #if all dimensions are equal size one will be chosen at random
     #or a dimension (spec with its index 0,1,2etc) can be set in options["flow"]
