@@ -37,6 +37,7 @@ class RandomWalker():
                             "options[distance]":["euclidean"],#
                             }
         
+        #setup simple parameters
         self.graph=graph
         self.particle_location=particle_initial_pos
         self.max_steps=int(max_steps)
@@ -44,7 +45,9 @@ class RandomWalker():
         self.total_steps=0
         
         
-        
+        #setup default values of options
+        #this is used for the case that the user passes some options
+        ##that do not include every option
         if("periodic" not in options):
             options["periodic"]=True
         if("distance" not in options):
@@ -53,12 +56,13 @@ class RandomWalker():
             options["suppress_err"]=[]
         if("graphType" not in options):
             options["graphType"]="dynamic_deterimination"
-            
         self.periodic=options["periodic"]
         self.distance_mode=options["distance"]
         self.graphType=options["graphType"]
         self.options=options
         
+        #validate restricted options
+        ##based on the values in self.valid_options
         #~~peroidic option handling~~
         if(self.valid_options["options[periodic]"] and 
            not ("peroidic" in self.options["suppress_err"])):
@@ -71,9 +75,12 @@ class RandomWalker():
                                 "follow the stack trace for this error")
         if(self.distance_mode not in self.valid_options["options[distance]"]):
             raise Exception("ERROR: other distances metrics have have not been implemented")
+            
+        #determin graph type dynamically
         if(self.graphType=="dynamic_deterimination"):
             self.graphTyp=RandomWalker.determine_graph_type(self.graph)
         
+        #check that the necissary options where passed to handle a given graph type
         #~~latticeObj option handling~~
         if("latticeObj" not in self.options):
             raise Exception("ERROR: options['latticeObj'] required for graph type lattice. Please "+
@@ -82,10 +89,10 @@ class RandomWalker():
                             "the finite length representing periodic dimensions as this is required "+
                             "to compute pbc corrected positions.")
 
-        
+        #setup handling of pbc
         self.pbc_passes=[]
         if(particle_initial_pos==None):
-            self.particle_location=self.find_initial_particle
+            self.particle_location=self.find_initial_particle()
         self.starting_position=self.particle_location
         self.particle_pos_pbc_corrected=self.particle_location
        
@@ -100,30 +107,52 @@ class RandomWalker():
     def find_initial_particle(self):
         raise Exception("ERROR: method find_initial_particle has not been implemented")
     
-    #NOTE away to determine if an edge is a pbc edge all dimensions will be the same
-    ##except one dimension will differ and that difference will be greater than 1
-    ##this condition works for simple uniform integer dimension lattices
     def compute_distance(self,old_point,new_point):
         raise Exception("ERROR: method compute_distance not implemented")            
             
+    #NOTE this method is only currently implemented rigously for lattice graphs
+    ##this requires options['latticeObj'].dimensions please see ~latticeObj option handling~~
+    ##in the class constructor
     def __step_account_for_pbc(self,old_point,new_point):
         if(self.graphTyp=="lattice"):
+            #setup the pbc crossing tracker if it hasnt been setup yet
             if(self.pbc_passes==[]):
                 self.pbc_passes=[0]*len(old_point)
             new_pos_pbc_cor=new_point
             for i in range(len(old_point)):
                 #NOTE the order of this subtraction is important
                 ##it is key for deteriming the sign of the change in pbc_passes
-                pos_dif=new_point[i]-old_point[i]
+                #NOTE away to determine if an edge is a pbc edge all dimensions will be the same
+                ##except one dimension will differ and that difference will be greater than 1
+                ##this condition works for simple uniform integer dimension lattices
+                pos_dif=old_point[i]-new_point[i]
                 if(abs(pos_dif)>1):
+                    #track which direction we crossed the pbc
+                    ##for sake of example consider
+                    ##l=UniformNDLatticeConstructor(dims=[5,2],periodic=[True,False])
+                    ##l.draw()
+                    ###we start on node (0,0)
+                    ###stepping across the pbc to (0,4) our pbc corrected position
+                    ###should be (0,-1) and pos_dif=-4 this gives us a -1 pbc cross in the
+                    ###the second dimension as such we do -1* 2nd dimension length (5)
+                    ###we get a pbc corrected position in the second dim of 4-5 =-1
+                    ###for a total corrected position of (0,-1) 
+                    ###---
+                    ###Alternately if we start at (1,4) and cross the pbc to (1,0)
+                    ###the pbc corrected position should be (1,5) we see that 
+                    ###pos_dif=4 this gives us a +1 pbc cross in 2nd dim
+                    ###as such our pbc correct 2nd dim position is 0+5 (5 is second dim length)
+                    ###thus our pbc corrected position is (1,5)
                     if(pos_dif<0):
                         self.pbc_passes[i]-=1
                     else:
                         self.pbc_passes[i]+=1
+            #calculate the pbc corrected possition
             for i in range(len(new_pos_pbc_cor)):
                 new_pos_pbc_cor[i]+=self.pbc_passes[i]*self.options["latticeObj"].dimensions[i]
             return new_pos_pbc_cor
         else:
+            #handle non-lattice graph pbc
             if("pbc_account_step" not in self.options["suppress_err"]):
                 raise Exception("ERROR: PBC accounting for non-lattice graphs is not currently supported. "+
                                 "Please consider modifying your local version of this file to include the "+
@@ -136,12 +165,20 @@ class RandomWalker():
             
     
     def step(self):
+        #get possible next position
         pos_steps=[n for n in self.graph.neighbors(self.particle_location)]
+        #select the next position to move to
         new_position=random.sample(pos_steps,1)[0]
+        #update the graph occupancy and position data
         self.graph.nodes[self.particle_location]["occ"]=0
         self.graph.nodes[new_position]["occ"]=1
+        #compute a new pbc adjusted position
         self.particle_pos_pbc_corrected=self.__step_account_for_pbc( self.particle_location,new_position)
         self.particle_location=new_position
+        #increment step count
+        #even if max steps isnt the stopping criteria this will still be used
+        ##it does not have an impact generally as max steps is extremely high
+        ##still if max steps is unexpectedly reached an error is thrown
         self.total_steps+=1
     
 
@@ -151,7 +188,10 @@ class RandomWalker():
             if(self.particle_location==self.endnode):
                 return
         if("max_step" not in self.options["suppress_err"]):
-            raise Exception("ERROR:exceeded max steps in random walk")
+            raise Exception("ERROR:exceeded max steps in random walk. note that if this "+
+                            "is expected this error can be supressed to a warning by "+
+                            "passing options['suppress_err']=['max_step']. Follow "+
+                            "stack trace to source and class constructor for more details.")
         else:
             print("WARN:exceeded max steps in random walk")
     
@@ -159,7 +199,7 @@ class RandomWalker():
         print(self.total_steps)
 
 def MPI_runner(params):
-    pass
+    raise Exception("ERROR: not implemented. You may be looking for CB_lattice_walker.MPI_runner")
     
         
 
@@ -169,4 +209,4 @@ def MPI_runner(params):
 
 
 if(__name__=="__main__"):
-    pass
+    raise Exception("ERROR: not implemented. TODO link argparsers")
