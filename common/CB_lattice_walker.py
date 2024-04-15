@@ -16,6 +16,7 @@ import sys
 #custom import of my own code
 import oop_cablebacteria_constructor
 import utils
+import convergence_criteria
 ##potentially depreciated custom code
 import old_random_walker
 
@@ -289,7 +290,7 @@ def CB_argparser():
             result=[MPI_runner(p) for p in params]
         computed+=conv_step
         log(computed-conv_step)
-        is_conv,new_past_res=old_random_walker.check_conv(past_res,fn,conv_thresh=tol)
+        is_conv,new_past_res=convergence_criteria.old_ratio_conv(past_res,fn,conv_thresh=tol)
     log("CONV AT:"+str(computed))
     endt=time.time()
     infologger.log("END:"+str(endt))
