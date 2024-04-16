@@ -5,6 +5,8 @@ Created on Fri Apr 12 16:34:39 2024
 @author: smith
 """
 import utils
+import inspect
+import math
 mylogger=utils.mlogger("main.log")
 log=mylogger.log
 
@@ -13,11 +15,14 @@ import random
 
 
 random.seed(0)
+
+
+
    
 class RandomWalker():
     #note endnode and maxsteps should not be used and are only here for
     ##backwards compatibility
-    def __init__(self,graph,particle_initial_pos=None,cutoff={},
+    def __init__(self,graph,particle_initial_pos=None,endcriteria={"single_node_boundary":"G"},
                  options={"periodic":True,"distance":"euclidean"},endnode="G",max_steps=1e94):
        
         #validation of input parameters
@@ -35,6 +40,7 @@ class RandomWalker():
                             #-particularly distance measurement-change on a peroidic graph
                             #this is currently not used see ~~peroidic option handling~~
                             "options[distance]":["euclidean"],#
+                            "endcriteria":["single_node_boundary","conv_method","conv_class"],
                             }
         
         #setup simple parameters
@@ -56,12 +62,24 @@ class RandomWalker():
             options["suppress_err"]=[]
         if("graphType" not in options):
             options["graphType"]="dynamic_deterimination"
+            
         self.periodic=options["periodic"]
         self.distance_mode=options["distance"]
         self.graphType=options["graphType"]
         self.options=options
         
         #validate restricted options
+        criteria_count=sum([1 for c in self.valid_options["endcriteria"] if c in endcriteria])
+        if(criteria_count!=1):
+            raise Exception("ERROR:Passed either too many or too few endcriteria")
+        if("conv_method" in endcriteria):
+            if(str(type(endcriteria['conv_method']))!="<class 'function'>"):
+                raise Exception("ERROR: endcriteria[conv_method] must be a function")
+        if("conv_class" in endcriteria):
+            if("check_conv" not in dir(endcriteria["class"])):
+                raise Exception("ERROR: endcriteria[conv_class] must be an object instance of a class with "+
+                                "the member method .check_conv")
+        self.endcriteria=endcriteria
         ##based on the values in self.valid_options
         #~~peroidic option handling~~
         if(self.valid_options["options[periodic]"] and 
@@ -107,14 +125,29 @@ class RandomWalker():
     def find_initial_particle(self):
         raise Exception("ERROR: method find_initial_particle has not been implemented")
     
-    def compute_distance(self,old_point,new_point):
-        raise Exception("ERROR: method compute_distance not implemented")            
+    def compute_distance(self,x,y):
+        if (self.distance_mode=="euclidean"):
+            if(self.graphType!="lattice" and ('noneuclid_dist' not in self.options['suppress_err'])):
+                raise Exception("ERROR: distance measurment for non-lattice graphs only defined interms of "+
+                                "node numbers and is not necessarily actual distances. NOTE: this error "+
+                                "can be suppressed by options['suppress_err']=['noneuclid_dist']")
+            else:
+                if(type(x)==int):
+                    x=[x]
+                    y=[y]
+                dist_sq=0
+                for i in range(len(x)):
+                    dist_sq+=(x[i]-y[i])**2
+                return math.sqrt(dist_sq)
+                
+        else:
+            raise Exception("ERROR: method distance_mode!='euclidean' not implemented in compute_distance")            
             
     #NOTE this method is only currently implemented rigously for lattice graphs
     ##this requires options['latticeObj'].dimensions please see ~latticeObj option handling~~
     ##in the class constructor
     def __step_account_for_pbc(self,old_point,new_point):
-        if(self.graphTyp=="lattice"):
+        if(self.graphType=="lattice"):
             #setup the pbc crossing tracker if it hasnt been setup yet
             if(self.pbc_passes==[]):
                 self.pbc_passes=[0]*len(old_point)
@@ -175,18 +208,29 @@ class RandomWalker():
         #compute a new pbc adjusted position
         self.particle_pos_pbc_corrected=self.__step_account_for_pbc( self.particle_location,new_position)
         self.particle_location=new_position
+        self.distance=self.compute_distance(self.starting_position, self.particle_location)
         #increment step count
         #even if max steps isnt the stopping criteria this will still be used
         ##it does not have an impact generally as max steps is extremely high
         ##still if max steps is unexpectedly reached an error is thrown
         self.total_steps+=1
     
+    def run_conv_checker(self):
+        should_exit=False
+        if("single_node_boundary" in self.endcriteria):
+            if(self.particle_location==self.endnode):
+                should_exit=True
+                return should_exit
+        if("conv_class" in self.endcriteria):
+            should_exit=self.endcriteria["conv_class"].check_conv(self)
+            return should_exit
 
     def run_random_walk(self):
         for i in range(self.max_steps):
             self.step()
-            if(self.particle_location==self.endnode):
-                return
+            self.run_conv_checker()
+            
+            
         if("max_step" not in self.options["suppress_err"]):
             raise Exception("ERROR:exceeded max steps in random walk. note that if this "+
                             "is expected this error can be supressed to a warning by "+
@@ -197,6 +241,12 @@ class RandomWalker():
     
     def print_outcome(self):
         print(self.total_steps)
+
+    
+
+
+
+
 
 def MPI_runner(params):
     raise Exception("ERROR: not implemented. You may be looking for CB_lattice_walker.MPI_runner")

@@ -9,9 +9,14 @@ import json
 
 
 class ResultWriter():
-    def __init__(self,logfile):
+    def __init__(self,logfile,frequency=1):
         self.logfile=logfile
+        self.frequency=frequency
+        self.count=0
     def write(self,result,systparams=[]):
+        if(self.count%self.frequency!=0):
+            self.count+=1
+            return
         if(not os.path.exists(self.logfile)):
             f=open(self.logfile,"w+")
             f.write("")

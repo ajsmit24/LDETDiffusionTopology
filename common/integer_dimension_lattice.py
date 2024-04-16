@@ -54,4 +54,3 @@ class UniformNDLatticeConstructor():
                             +str(self.particle_position)+" -Has not yet been implemented in "+
                             "UniformNDLatticeConstructor")
         
-        
