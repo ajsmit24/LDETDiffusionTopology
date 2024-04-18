@@ -9,6 +9,8 @@ import networkx as nx
 import math
 import random
 
+import utils
+
 
 #these lattice can have a number of properties of interest
 ##perhaps best is the mean first passage time to an edge from the center
@@ -23,7 +25,9 @@ class UniformNDLatticeConstructor():
         self.dimensions=dims
         self.graph=nx.grid_graph(dim=dims,periodic=periodic)
         self.particle_position=particle_position
-        #self.insert_particle()
+        self.avail_positions=["center"]
+        if(particle_position in self.avail_positions):
+            self.insert_particle()
         self.options=options
                 
     def draw(self):
@@ -34,7 +38,7 @@ class UniformNDLatticeConstructor():
     #or a dimension (spec with its index 0,1,2etc) can be set in options["flow"]
     def insert_particle(self):
         if(self.particle_position=="center"):
-            self.particle_position=tuple(math.floor(d/2) for d in self.dimensions)
+            self.particle_position=utils.lattice_cast_node(tuple(math.floor(d/2) for d in self.dimensions))
             self.graph.nodes[self.particle_position]["occ"]=1
         elif(self.particle_position=="starting_surface"):
             flow_dim=-1

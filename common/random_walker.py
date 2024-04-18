@@ -76,13 +76,13 @@ class RandomWalker():
             if(str(type(endcriteria['conv_method']))!="<class 'function'>"):
                 raise Exception("ERROR: endcriteria[conv_method] must be a function")
         if("conv_class" in endcriteria):
-            if("check_conv" not in dir(endcriteria["class"])):
+            if("check_conv" not in dir(endcriteria["conv_class"])):
                 raise Exception("ERROR: endcriteria[conv_class] must be an object instance of a class with "+
                                 "the member method .check_conv")
         self.endcriteria=endcriteria
         ##based on the values in self.valid_options
         #~~peroidic option handling~~
-        if(self.valid_options["options[periodic]"] and 
+        if((not self.valid_options["options[periodic]"] ) and 
            not ("peroidic" in self.options["suppress_err"])):
                 raise Exception("ERROR:Implemented behavior is constistent for both graphs with "+
                                 "edges that create a peroidic boundary and graphs that are truly "+
@@ -96,7 +96,11 @@ class RandomWalker():
             
         #determin graph type dynamically
         if(self.graphType=="dynamic_deterimination"):
+            #not clear why the intermediate variable is needed but I swear it is needed
             self.graphTyp=RandomWalker.determine_graph_type(self.graph)
+            x=RandomWalker.determine_graph_type(self.graph)
+            self.graphType=x
+            print("determined graph type:"+self.graphType)
         
         #check that the necissary options where passed to handle a given graph type
         #~~latticeObj option handling~~
@@ -148,6 +152,8 @@ class RandomWalker():
     ##in the class constructor
     def __step_account_for_pbc(self,old_point,new_point):
         if(self.graphType=="lattice"):
+            old_point=utils.lattice_cast_node(old_point)
+            new_point=utils.lattice_cast_node(new_point)
             #setup the pbc crossing tracker if it hasnt been setup yet
             if(self.pbc_passes==[]):
                 self.pbc_passes=[0]*len(old_point)
@@ -181,9 +187,8 @@ class RandomWalker():
                     else:
                         self.pbc_passes[i]+=1
             #calculate the pbc corrected possition
-            for i in range(len(new_pos_pbc_cor)):
-                new_pos_pbc_cor[i]+=self.pbc_passes[i]*self.options["latticeObj"].dimensions[i]
-            return new_pos_pbc_cor
+            new_pos_pbc_cor=tuple(new_pos_pbc_cor[i]+self.pbc_passes[i]*self.options["latticeObj"].dimensions[i] for i in range(len(new_pos_pbc_cor)))
+            return utils.lattice_cast_node(new_pos_pbc_cor)
         else:
             #handle non-lattice graph pbc
             if("pbc_account_step" not in self.options["suppress_err"]):
@@ -208,7 +213,7 @@ class RandomWalker():
         #compute a new pbc adjusted position
         self.particle_pos_pbc_corrected=self.__step_account_for_pbc( self.particle_location,new_position)
         self.particle_location=new_position
-        self.distance=self.compute_distance(self.starting_position, self.particle_location)
+        self.distance=self.compute_distance(self.starting_position, self.particle_pos_pbc_corrected)
         #increment step count
         #even if max steps isnt the stopping criteria this will still be used
         ##it does not have an impact generally as max steps is extremely high
@@ -228,7 +233,8 @@ class RandomWalker():
     def run_random_walk(self):
         for i in range(self.max_steps):
             self.step()
-            self.run_conv_checker()
+            if(self.run_conv_checker()):
+                return
             
             
         if("max_step" not in self.options["suppress_err"]):
