@@ -40,7 +40,8 @@ class RandomWalker():
                             #-particularly distance measurement-change on a peroidic graph
                             #this is currently not used see ~~peroidic option handling~~
                             "options[distance]":["euclidean"],#
-                            "endcriteria":["single_node_boundary","conv_method","conv_class"],
+                            "endcriteria":["single_node_boundary","surface_boundary","conv_method","conv_class"],
+                            "endcriteria[surface_boundary]":["bound","writer"]
                             }
         
         #setup simple parameters
@@ -75,6 +76,12 @@ class RandomWalker():
         if("conv_method" in endcriteria):
             if(str(type(endcriteria['conv_method']))!="<class 'function'>"):
                 raise Exception("ERROR: endcriteria[conv_method] must be a function")
+        if("surface_boundary" in endcriteria):
+            k_req={"bound":"a float that is the distance to the surface","writer":"a util resultwriter class"}
+            for k in self.valid_options["endcriteria[surface_boundary]"]:
+                if(k not in endcriteria["surface_boundary"]):
+                    raise Exception("ERROR: endcriteria[surface_boundary] must be a dictionary that contains the key"+
+                                    k+"| endcriteria[surface_boundary]["+k+"] must be "+k_req[k])
         if("conv_class" in endcriteria):
             if("check_conv" not in dir(endcriteria["conv_class"])):
                 raise Exception("ERROR: endcriteria[conv_class] must be an object instance of a class with "+
@@ -225,6 +232,15 @@ class RandomWalker():
         if("single_node_boundary" in self.endcriteria):
             if(self.particle_location==self.endnode):
                 should_exit=True
+                return should_exit
+        if("surface_boundary" in self.endcriteria):
+            if(self.distance>=self.endcriteria["surface_boundary"]["bound"]):
+                should_exit=True
+                self.endcriteria["surface_boundary"]["writer"].write({"mft":self.total_steps,
+                                                                      "pbc_pos":self.particle_pos_pbc_corrected,
+                                                                      "dist":self.distance,
+                                                                      "isconv":True
+                                                                      })
                 return should_exit
         if("conv_class" in self.endcriteria):
             should_exit=self.endcriteria["conv_class"].check_conv(self)

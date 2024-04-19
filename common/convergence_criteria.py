@@ -17,6 +17,48 @@ import utils
 mylogger=utils.mlogger("main.log")
 log=mylogger.log
 
+#TODO generalize this
+class Generalized_Conv():
+    def __init__(self,property_keys,threshold_type="relative_std",threshold_limit=0.05):
+        self.threshold_types=["relative_std","absolute_value"]
+        if(threshold_type not in self.threshold_types):
+            raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
+        self.threshold_type=threshold_type
+        self.threshold_limit=threshold_limit
+        self.threshold=threshold_limit
+        self.property_keys=property_keys
+        self.running_stats={}
+        for property_key in property_keys:
+           self.running_stats[property_key]=Welford()
+    
+    
+    def check_conv(self,output_files,verbose=True):
+        if(self.threshold_type!="relative_std"):
+            raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
+        for of in output_files:
+            reader=utils.ResultReader(of)
+            #getting these final states may be slightly... faster in reverse
+            #or maybe the writer should output something when a final state is reached
+            for line in reader.read():
+                if(line["isconv"]):
+                    for k in self.running_stats:
+                        self.running_stats[k].add(np.array(line[k]))
+            
+            is_all_conv=True         
+            rel_stds={}
+            means={}
+            abs_std={}
+            for k in self.running_stats:
+                means[k]=self.running_stats[k].mean.item()
+                abs_std[k]=self.running_stats[k].var_s.item()
+                rel_stds[k]=abs_std[k]/means[k]
+                is_all_conv=is_all_conv and rel_stds[k]<self.threshold
+                
+            if(not verbose):
+                return is_all_conv
+            else:
+                #return is_all_conv,rel_stds
+                return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
 
 class Diffusion_Conv():
     def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",threshold_limit=0.05):
@@ -101,6 +143,8 @@ class Overall_Diffusion_Conv():
         self.running_stats={"D":Welford()}
         
     def check_conv(self,output_files,verbose=True):
+        if(self.threshold_type!="relative_std"):
+            raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
         for of in output_files:
             reader=utils.ResultReader(of)
             #getting these final states may be slightly... faster in reverse
