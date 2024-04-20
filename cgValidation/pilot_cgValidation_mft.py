@@ -13,7 +13,8 @@ import convergence_criteria as convcrit
 import random_walker
 import random
 
-
+reslogger=utils.mlogger("res.log")
+reslog=reslogger.log
 
 
 output_files={}
@@ -94,7 +95,8 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
             conv_by_dim[highest_dimension-i]=conv
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
         is_total_conv=temp_cov
-        print(is_total_conv,conv_by_dim,loop_count,rel_std_list)
+        reslog([is_total_conv,conv_by_dim,loop_count,rel_std_list])
         loop_count+=1
-                
-run_job("test1",9,2,5000,3,useMPI=False)
+
+if(__name__=="__main__"):                
+	run_job("test1",11,2,50000,3,useMPI=True)

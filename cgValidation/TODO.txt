@@ -1,0 +1,3 @@
+I should be keeping track of standard deviation in the mean not standard deviation in the fpt
+difference between
+mfpt and fpt
