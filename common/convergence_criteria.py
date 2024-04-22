@@ -151,6 +151,8 @@ class Diffusion_Conv():
             #for i in range(self.graph_dim):
                 #m,_=self.calc_mean_and_var([rand_walk.particle_pos_pbc_corrected[i]],str(i))
                 #pos_mean.append(m)
+            if(rand_walk.total_steps==2):
+             isconv=False
             self.result_writer.write({"time":rand_walk.total_steps,
                                  "distance":rand_walk.distance,
                                  "D":stats["D_cur"],

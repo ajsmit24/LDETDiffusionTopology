@@ -6,7 +6,8 @@ import convergence_criteria as convcrit
 import random_walker
 import random
 
-
+reslogger=utils.mlogger("res.log")
+reslog=reslogger.log
 
 
 output_files={}
@@ -44,7 +45,7 @@ def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
         lastjobid+=1
     return joblist,lastjobid
 
-def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_freq=25,useMPI=True):
+def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_freq=1,useMPI=True):
     global output_files
     job_options={
         "calcs_per_batch":calcs_per_batch,
@@ -78,9 +79,11 @@ def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_
             conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(output_files[highest_dimension-i])
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
+            print(rel_std_list)
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
         is_total_conv=temp_cov
-        print(is_total_conv,conv_by_dim,loop_count,rel_std_list)
+        reslog([is_total_conv,conv_by_dim,loop_count,rel_std_list])
         loop_count+=1
                 
-run_job("test0",2,10,3,useMPI=False)
+if(__name__=="__main__"):
+	run_job("test0",2,2500,3,useMPI=False)
