@@ -21,7 +21,7 @@ import utils
 class Rolling_Av_Conv():
     def mean_str(k):
         return "<"+k+">"
-    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=0.05):
+    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=0.1):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -70,7 +70,7 @@ class Rolling_Av_Conv():
 
 #a more general version of Diffusion_Conv
 class Generalized_Conv():
-    def __init__(self,property_keys,threshold_type="relative_std",threshold_limit=0.05):
+    def __init__(self,property_keys,threshold_type="relative_std",threshold_limit=0.1):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -111,7 +111,7 @@ class Generalized_Conv():
                 return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
 
 class Diffusion_Conv():
-    def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",threshold_limit=0.05):
+    def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",threshold_limit=0.1):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -151,8 +151,6 @@ class Diffusion_Conv():
             #for i in range(self.graph_dim):
                 #m,_=self.calc_mean_and_var([rand_walk.particle_pos_pbc_corrected[i]],str(i))
                 #pos_mean.append(m)
-            if(rand_walk.total_steps==2):
-             isconv=False
             self.result_writer.write({"time":rand_walk.total_steps,
                                  "distance":rand_walk.distance,
                                  "D":stats["D_cur"],
@@ -189,8 +187,9 @@ class Diffusion_Conv():
 #additionally different batches will be writen to different files to keep files
 #small and minimize chances for additional strange behavior with MPI writes
 class Overall_Diffusion_Conv():
-    def __init__(self,threshold=0.05):
+    def __init__(self,threshold=0.1,threshold_type="relative_std"):
         self.threshold=threshold
+        self.threshold_type=threshold_type
         #self.running_stats={"<x^2>":Welford(),"D":Welford(),"t":Welford()}
         self.running_stats={"D":Welford()}
         
@@ -219,8 +218,8 @@ class Overall_Diffusion_Conv():
             if(not verbose):
                 return is_all_conv
             else:
-                return is_all_conv,rel_stds
-                #return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
+                #return is_all_conv,rel_stds
+                return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
                     
             
         

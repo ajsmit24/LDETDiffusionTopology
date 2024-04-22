@@ -6,7 +6,7 @@ import convergence_criteria as convcrit
 import random_walker
 import random
 
-reslogger=utils.mlogger("res.log")
+reslogger=utils.mlogger("res_dif.log")
 reslog=reslogger.log
 
 
@@ -86,4 +86,4 @@ def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_
         loop_count+=1
                 
 if(__name__=="__main__"):
-	run_job("test0",2,2500,3,useMPI=False)
+	run_job("test0",5,10,3,useMPI=False)
