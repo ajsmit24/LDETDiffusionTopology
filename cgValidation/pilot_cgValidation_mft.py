@@ -68,8 +68,8 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
         }
     lastrunid={highest_dimension:0,highest_dimension-1:0}
     is_total_conv=False
-    total_conv_checker={highest_dimension:convcrit.Generalized_Conv(["mft"]),
-                        highest_dimension-1:convcrit.Generalized_Conv(["mft"])}
+    total_conv_checker={highest_dimension:convcrit.Rolling_Av_Conv(["mft"]),
+                        highest_dimension-1:convcrit.Rolling_Av_Conv(["mft"])}
     loop_count=0
     conv_by_dim={highest_dimension:False,highest_dimension-1:False}
     while(not is_total_conv):
@@ -93,10 +93,11 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
             conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(output_files[highest_dimension-i])
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
+            print(rel_stds)
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
         is_total_conv=temp_cov
         reslog([is_total_conv,conv_by_dim,loop_count,rel_std_list])
         loop_count+=1
 
 if(__name__=="__main__"):                
-	run_job("test1",11,2,50000,3,useMPI=True)
+	run_job("test1",11,2,1000,3,useMPI=False)

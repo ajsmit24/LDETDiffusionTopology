@@ -14,10 +14,61 @@ from welford import Welford
 #https://github.com/a-mitani/welford
 
 import utils
-mylogger=utils.mlogger("main.log")
-log=mylogger.log
 
-#TODO generalize this
+#TODO COMMENT THIS FILE
+
+
+class Rolling_Av_Conv():
+    def mean_str(k):
+        return "<"+k+">"
+    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=0.05):
+        self.threshold_types=["relative_std","absolute_value"]
+        if(threshold_type not in self.threshold_types):
+            raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
+            
+        self.threshold_type=threshold_type
+        self.threshold_limit=threshold_limit
+        self.property_key=property_key
+        
+        if(self.threshold_type!="relative_std"):
+            raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
+        self.running_stats={}
+        self.mean_props=[Rolling_Av_Conv.mean_str(k) for k in self.property_key]
+        for k in self.property_key:
+            self.running_stats[k]=Welford()
+            self.running_stats[Rolling_Av_Conv.mean_str(k)]=Welford()
+            
+    def check_conv(self,output_files,verbose=True):
+        for of in output_files:
+            reader=utils.ResultReader(of)
+
+            for line in reader.read():
+                if(line["isconv"]):
+                    for k in self.property_key:
+                        self.running_stats[k].add(np.array(line[k]))
+                        means=self.running_stats[k].mean.item()
+                        self.running_stats[Rolling_Av_Conv.mean_str(k)].add(np.array(means))
+                        
+            means={}
+            abs_std={}
+            rel_stds={}
+            is_all_conv=True
+            for k in self.mean_props:
+             means[k]=self.running_stats[k].mean.item()
+             abs_std[k]=self.running_stats[k].var_s.item()
+             rel_stds[k]=abs_std[k]/means[k]
+             is_all_conv=is_all_conv and rel_stds[k]<self.threshold_limit
+            if(not verbose):
+                return is_all_conv
+            else:
+                #return is_all_conv,rel_stds
+                return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
+                    
+
+
+
+
+#a more general version of Diffusion_Conv
 class Generalized_Conv():
     def __init__(self,property_keys,threshold_type="relative_std",threshold_limit=0.05):
         self.threshold_types=["relative_std","absolute_value"]
@@ -37,8 +88,7 @@ class Generalized_Conv():
             raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
         for of in output_files:
             reader=utils.ResultReader(of)
-            #getting these final states may be slightly... faster in reverse
-            #or maybe the writer should output something when a final state is reached
+
             for line in reader.read():
                 if(line["isconv"]):
                     for k in self.running_stats:
@@ -176,7 +226,7 @@ class Overall_Diffusion_Conv():
 #rolling averages convergence in ratio of two things
 def old_ratio_conv(past,fn,conv_thresh=0.001):
     thresh=conv_thresh
-    log("checking conv")
+    #log("checking conv")
     f=open(fn,"r")
     txt=f.read()
     f.close()
@@ -210,8 +260,8 @@ def old_ratio_conv(past,fn,conv_thresh=0.001):
             for item in data:
                 if(item["i"]==i):
                     datapair.append(item["i"])
-            log("LOGGING STRANGNESS")
-            log("Strange Ratio: "+str(datadict[i])+" "+str(datapair)+"PARAMS:"+json.dumps(list(sys.argv)))
+            #log("LOGGING STRANGNESS")
+            #log("Strange Ratio: "+str(datadict[i])+" "+str(datapair)+"PARAMS:"+json.dumps(list(sys.argv)))
             raise Exception("Invalid Ratio")
             #raise Exception("Strange Ratio: "+str(datadict[i])+" "+str(datapair))
     datalist=[datadict[i] for i in keylist]
