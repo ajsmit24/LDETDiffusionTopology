@@ -24,7 +24,7 @@ global_default_thresh=0.001
 class Rolling_Av_Conv():
     def mean_str(k):
         return "<"+k+">"
-    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=global_default_thresh):
+    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=global_default_thresh,usefile=True):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -32,6 +32,7 @@ class Rolling_Av_Conv():
         self.threshold_type=threshold_type
         self.threshold_limit=threshold_limit
         self.property_key=property_key
+        self.usefile=usefile
         
         if(self.threshold_type!="relative_std"):
             raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
@@ -41,16 +42,21 @@ class Rolling_Av_Conv():
             self.running_stats[k]=Welford()
             self.running_stats[Rolling_Av_Conv.mean_str(k)]=Welford()
             
-    def check_conv(self,output_files,verbose=True):
-        for of in output_files:
-            reader=utils.ResultReader(of)
-
-            for line in reader.read():
-                if(line["isconv"]):
-                    for k in self.property_key:
-                        self.running_stats[k].add(np.array(line[k]))
-                        means=self.running_stats[k].mean.item()
-                        self.running_stats[Rolling_Av_Conv.mean_str(k)].add(np.array(means))
+    def check_conv(self,data,verbose=True):
+        for i in range(len(data)):
+            if(self.usefile):
+                reader=utils.ResultReader(data[i])
+                for line in reader.read():
+                    if(line["isconv"]):
+                        for k in self.property_key:
+                            self.running_stats[k].add(np.array(line[k]))
+                            means=self.running_stats[k].mean.item()
+                            self.running_stats[Rolling_Av_Conv.mean_str(k)].add(np.array(means))
+            else:
+                for k in self.property_key:
+                    self.running_stats[k].add(np.array(data[i][k]))
+                    means=self.running_stats[k].mean.item()
+                    self.running_stats[Rolling_Av_Conv.mean_str(k)].add(np.array(means))
                         
             means={}
             abs_std={}
@@ -140,7 +146,8 @@ class Diffusion_Conv():
         D=msd_x2/((2**self.graph_dim)*time)
         mean_D,std_D=self.calc_mean_and_var([D],"D")
         return {"D_cur":D,"<x^2>":{"mean":msd_x2,"std":std_x2},"D":{"mean":mean_D,"std":std_D}}
-        
+    def get_diffusion(self):
+        return self.running_stats["D"].mean.item()
     def check_conv(self,rand_walk):
         stats=self.update_diffusion_coef(rand_walk.total_steps,rand_walk.distance**2)
         if(self.threshold_type=="relative_std"):
@@ -190,23 +197,28 @@ class Diffusion_Conv():
 #additionally different batches will be writen to different files to keep files
 #small and minimize chances for additional strange behavior with MPI writes
 class Overall_Diffusion_Conv():
-    def __init__(self,threshold=global_default_thresh,threshold_type="relative_std"):
+    def __init__(self,threshold=global_default_thresh,threshold_type="relative_std",usefile=True):
         self.threshold=threshold
         self.threshold_type=threshold_type
         #self.running_stats={"<x^2>":Welford(),"D":Welford(),"t":Welford()}
         self.running_stats={"D":Welford()}
+        self.usefile=usefile
         
-    def check_conv(self,output_files,verbose=True):
+    def check_conv(self,data,verbose=True):
         if(self.threshold_type!="relative_std"):
             raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
-        for of in output_files:
-            reader=utils.ResultReader(of)
-            #getting these final states may be slightly... faster in reverse
-            #or maybe the writer should output something when a final state is reached
-            for line in reader.read():
-                if(line["isconv"]):
-                    for k in self.running_stats:
-                        self.running_stats[k].add(np.array(line[k]))
+        for i in range(len(data)):
+            if(self.usefile):
+                reader=utils.ResultReader(data[i])
+                #getting these final states may be slightly... faster in reverse
+                #or maybe the writer should output something when a final state is reached
+                for line in reader.read():
+                    if(line["isconv"]):
+                        for k in self.running_stats:
+                            self.running_stats[k].add(np.array(line[k]))
+            else:
+                for k in self.running_stats:
+                    self.running_stats[k].add(np.array(data[i][k]))
             
             is_all_conv=True         
             rel_stds={}

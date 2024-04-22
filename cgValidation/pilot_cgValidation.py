@@ -23,7 +23,7 @@ def single_diffusion_calc(params):
     rand_walker=random_walker.RandomWalker(lattice.graph,particle_initial_pos=lattice.particle_position,
                                            endcriteria={"conv_class":conv_checker},options=options)
     rand_walker.run_random_walk()
-    return None
+    return {"D":conv_checker.get_diffusion(),"dim":dim_num}
 
 def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
     global output_files
@@ -31,7 +31,7 @@ def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
     btch_fn=batch_output_file_format.replace(
         "{jobname}",job_options["job_name"]).replace(
             "{dim}",str(dim)).replace("{batch}",str(batchnumber))
-    res_writer=utils.ResultWriter(btch_fn,frequency=job_options["write_freq"],force_only=True)
+    res_writer=utils.ResultWriter(btch_fn,frequency=job_options["write_freq"],mute=True)
     for i in range(job_options["calcs_per_batch"]):
         joblist.append({
             "peroidic_unit_size":job_options["peroidic_unit_size"],
@@ -73,14 +73,17 @@ def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_
         else:
             for jp in mpi_job_list:
                 result.append(single_diffusion_calc(jp))
+        cleaned_res={highest_dimension:[],highest_dimension-1:[]}
+        for res in result:
+            cleaned_res[res["dim"]].append(res)
         temp_cov=True
         rel_std_list={}
         for i in range(2):
             conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(output_files[highest_dimension-i])
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
-            print(rel_std_list)
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
+        print(rel_std_list)
         is_total_conv=temp_cov
         reslog([is_total_conv,conv_by_dim,loop_count,rel_std_list])
         loop_count+=1

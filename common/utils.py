@@ -32,12 +32,15 @@ class ResultReader():
                 
 
 class ResultWriter():
-    def __init__(self,logfile,frequency=1,force_only=False):
+    def __init__(self,logfile,frequency=1,force_only=False,mute=False):
         self.logfile=logfile
         self.frequency=frequency
         self.count=0
         self.force_only=force_only
+        self.mute=mute
     def write(self,result,systparams=[],force=False):
+        if(self.mute):
+            return
         if(self.count%self.frequency!=0):
             self.count+=1
             return
