@@ -15,13 +15,16 @@ from welford import Welford
 
 import utils
 
+
+global_default_thresh=0.001
+
 #TODO COMMENT THIS FILE
 
 
 class Rolling_Av_Conv():
     def mean_str(k):
         return "<"+k+">"
-    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=0.1):
+    def __init__(self,property_key,threshold_type="relative_std",threshold_limit=global_default_thresh):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -70,7 +73,7 @@ class Rolling_Av_Conv():
 
 #a more general version of Diffusion_Conv
 class Generalized_Conv():
-    def __init__(self,property_keys,threshold_type="relative_std",threshold_limit=0.1):
+    def __init__(self,property_keys,threshold_type="relative_std",threshold_limit=global_default_thresh):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -111,7 +114,7 @@ class Generalized_Conv():
                 return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
 
 class Diffusion_Conv():
-    def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",threshold_limit=0.1):
+    def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",threshold_limit=global_default_thresh):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -167,7 +170,7 @@ class Diffusion_Conv():
                                  "run_id":self.run_id,
                                  "isconv":isconv,
                                  #"pos_mean":pos_mean
-                                 })
+                                 },force=isconv)
             return isconv
         else:
             raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
@@ -187,7 +190,7 @@ class Diffusion_Conv():
 #additionally different batches will be writen to different files to keep files
 #small and minimize chances for additional strange behavior with MPI writes
 class Overall_Diffusion_Conv():
-    def __init__(self,threshold=0.1,threshold_type="relative_std"):
+    def __init__(self,threshold=global_default_thresh,threshold_type="relative_std"):
         self.threshold=threshold
         self.threshold_type=threshold_type
         #self.running_stats={"<x^2>":Welford(),"D":Welford(),"t":Welford()}
@@ -225,7 +228,7 @@ class Overall_Diffusion_Conv():
         
 
 #rolling averages convergence in ratio of two things
-def old_ratio_conv(past,fn,conv_thresh=0.001):
+def old_ratio_conv(past,fn,conv_thresh=global_default_thresh):
     thresh=conv_thresh
     #log("checking conv")
     f=open(fn,"r")

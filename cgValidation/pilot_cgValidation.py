@@ -31,7 +31,7 @@ def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
     btch_fn=batch_output_file_format.replace(
         "{jobname}",job_options["job_name"]).replace(
             "{dim}",str(dim)).replace("{batch}",str(batchnumber))
-    res_writer=utils.ResultWriter(btch_fn,frequency=job_options["write_freq"])
+    res_writer=utils.ResultWriter(btch_fn,frequency=job_options["write_freq"],force_only=True)
     for i in range(job_options["calcs_per_batch"]):
         joblist.append({
             "peroidic_unit_size":job_options["peroidic_unit_size"],

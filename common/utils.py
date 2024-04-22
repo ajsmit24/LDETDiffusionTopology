@@ -32,14 +32,17 @@ class ResultReader():
                 
 
 class ResultWriter():
-    def __init__(self,logfile,frequency=1):
+    def __init__(self,logfile,frequency=1,force_only=False):
         self.logfile=logfile
         self.frequency=frequency
         self.count=0
-    def write(self,result,systparams=[]):
+        self.force_only=force_only
+    def write(self,result,systparams=[],force=False):
         if(self.count%self.frequency!=0):
             self.count+=1
             return
+        if(self.force_only and (not force)):
+            return 
         if(not os.path.exists(self.logfile)):
             f=open(self.logfile,"w+")
             f.write("")
