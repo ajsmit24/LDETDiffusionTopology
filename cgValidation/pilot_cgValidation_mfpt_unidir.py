@@ -104,4 +104,4 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
         loop_count+=1
 
 if(__name__=="__main__"):                
-	run_job("test1",11,2,10,3,useMPI=False)
+	run_job("test1",11,2,10,3,useMPI=True)
