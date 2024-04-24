@@ -12,9 +12,37 @@ import utils
 import convergence_criteria as convcrit
 import random_walker
 import random
+import argparse
 
-reslogger=utils.mlogger("res_mfpt_unidir.log")
-reslog=reslogger.log
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Argument parser for lattice diffusion simulation")
+
+    # Number of lattice points option
+    parser.add_argument('-n', '--num_points', type=int, required=True,
+                        help='Number of lattice points')
+
+    # Highest dimension option
+    parser.add_argument('-d', '--dimension', type=int, required=True,
+                        help='Highest dimension (e.g., 1 for 1D, 2 for 2D, etc.)')
+
+    # Cutoff distance option
+    parser.add_argument('-c', '--cutoff', type=float, required=True,
+                        help='Cutoff distance for interaction')
+
+    # Job name option
+    parser.add_argument('-j', '--job_name', type=str, required=True,
+                        help='Job name')
+
+    args = parser.parse_args()
+
+    return args
+
+reslogger,reslog,jobstem,args=(None,None,None,None)
+if(__name__=="__main__"):
+ args=parse_arguments()
+ jobstem=args.job_name+"_maxd-"+str(args.dimension)+"_np-"+str(args.num_points)
+ reslogger=utils.mlogger(jobstem+".log")
+ reslog=reslogger.log
 
 
 output_files={}
@@ -104,4 +132,4 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
         loop_count+=1
 
 if(__name__=="__main__"):                
-	run_job("test1",11,2,10,3,useMPI=True)
+	run_job(jobstem,args.cuttof,args.dimension,500,args.num_points,useMPI=True)
