@@ -16,7 +16,7 @@ from welford import Welford
 import utils
 
 
-global_default_thresh=0.001
+global_default_thresh=0.05
 
 #TODO COMMENT THIS FILE
 
@@ -120,7 +120,8 @@ class Generalized_Conv():
                 return is_all_conv,{"rel_stds":rel_stds,"means":means,"abs_std":abs_std}
 
 class Diffusion_Conv():
-    def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",threshold_limit=global_default_thresh):
+    def __init__(self,run_id,result_writer,graph_dim,threshold_type="relative_std",
+                 threshold_limit=global_default_thresh,abs_min_steps=25):
         self.threshold_types=["relative_std","absolute_value"]
         if(threshold_type not in self.threshold_types):
             raise Exception("ERROR: Invalid argument value threshold_type="+threshold_type)
@@ -129,6 +130,9 @@ class Diffusion_Conv():
         self.graph_dim=graph_dim
         self.result_writer=result_writer
         self.run_id=run_id
+        self.abs_min_steps=abs_min_steps
+        self.last_dif=None
+        self.info=[]
         
         self.conv_check_count=0
         
@@ -144,10 +148,11 @@ class Diffusion_Conv():
         #msd=mean squared displacement
         msd_x2,std_x2=self.calc_mean_and_var([distance],"<x^2>")
         D=msd_x2/((2**self.graph_dim)*time)
+        self.last_dif=D
         mean_D,std_D=self.calc_mean_and_var([D],"D")
         return {"D_cur":D,"<x^2>":{"mean":msd_x2,"std":std_x2},"D":{"mean":mean_D,"std":std_D}}
     def get_diffusion(self):
-        return self.running_stats["D"].mean.item()
+        return self.last_dif
     def check_conv(self,rand_walk):
         stats=self.update_diffusion_coef(rand_walk.total_steps,rand_walk.distance**2)
         if(self.threshold_type=="relative_std"):
@@ -157,11 +162,16 @@ class Diffusion_Conv():
             D_good=D_rel_std<self.threshold_limit
             #isconv=x2_good and D_good
             isconv=D_good
+            #if self.abs_min_steps>rand_walk.total_steps:
+             #   isconv=False
+            #if rand_walk.total_steps>5:
+            #    isconv=True
             #pos_mean=[]
             #for i in range(self.graph_dim):
                 #m,_=self.calc_mean_and_var([rand_walk.particle_pos_pbc_corrected[i]],str(i))
                 #pos_mean.append(m)
-            self.result_writer.write({"time":rand_walk.total_steps,
+            #print(rand_walk.total_steps)
+            output={"time":rand_walk.total_steps,
                                  "distance":rand_walk.distance,
                                  "D":stats["D_cur"],
                                  "D_mean":stats["D"]["mean"],
@@ -177,7 +187,13 @@ class Diffusion_Conv():
                                  "run_id":self.run_id,
                                  "isconv":isconv,
                                  #"pos_mean":pos_mean
-                                 },force=isconv)
+                                 }
+            self.info.append(output)
+            #print(output)
+            #if isconv:
+            #    raise Exception("STOP")
+
+            self.result_writer.write(output,force=isconv)
             return isconv
         else:
             raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)

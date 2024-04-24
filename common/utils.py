@@ -55,13 +55,14 @@ class ResultWriter():
         f.close()
 
 
-def lattice_cast_node(node):
-    if(type(node)==tuple):
+def lattice_cast_node(node,target=None):
+    if(target!=tuple and type(node)==tuple):
         if(len(node)==1):
             return node[0]
         return node
-    if(type(node)==int):
+    if(target!=int and type(node)==int):
         return (node,)
+    return node
 
 class mlogger():
         def __init__(self,fn):

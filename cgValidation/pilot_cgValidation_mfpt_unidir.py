@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 24 10:14:24 2024
+
+@author: smith
+"""
+
 import sys
 sys.path.insert(0, '../common/')
 import integer_dimension_lattice as idl
@@ -5,42 +12,44 @@ import utils
 import convergence_criteria as convcrit
 import random_walker
 import random
-import matplotlib.pyplot as plt
 
-
-reslogger=utils.mlogger("res_dif.log")
+reslogger=utils.mlogger("res_mfpt_unidir.log")
 reslog=reslogger.log
-
-one_dim_debug=True
 
 
 output_files={}
-batch_output_file_format="{jobname}_diffusion_d{dim}_b{batch}.out"
+batch_output_file_format="{jobname}_mfptunidir_d{dim}_b{batch}_x{xcut}.out"
 
-def single_diffusion_calc(params):
+def single_first_passage_calc(params):
     random.seed(params["run_id"])
     dim_num=params["d"]
     peroidic_size=params["peroidic_unit_size"]
+    surface_boundary=params["x_cut"]
     lattice=idl.UniformNDLatticeConstructor(dims=[peroidic_size]*dim_num,periodic=[True]*dim_num)
-    conv_checker=convcrit.Diffusion_Conv(params["run_id"], params["result_writer"], dim_num)
     options={"latticeObj":lattice,"graphType":"lattice"}
+    endcriteria={
+        "uni_dir_surface":{
+            "bound_dist":surface_boundary,"writer":params["result_writer"],
+            "bound_dim":0,"reflecting":True}
+        }
     rand_walker=random_walker.RandomWalker(lattice.graph,particle_initial_pos=lattice.particle_position,
-                                           endcriteria={"conv_class":conv_checker},options=options)
+                                           endcriteria=endcriteria,options=options)
     rand_walker.run_random_walk()
-    return {"D":conv_checker.get_diffusion(),"dim":dim_num,"run_info":conv_checker.info}
+    return {"mft":rand_walker.total_steps,"dim":dim_num}
 
 def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
     global output_files
     joblist=[]
     btch_fn=batch_output_file_format.replace(
         "{jobname}",job_options["job_name"]).replace(
-            "{dim}",str(dim)).replace("{batch}",str(batchnumber))
+            "{dim}",str(dim)).replace("{batch}",str(batchnumber)).replace("{xcut}",str(job_options["x_cut"]))
     res_writer=utils.ResultWriter(btch_fn,frequency=job_options["write_freq"],mute=True)
     for i in range(job_options["calcs_per_batch"]):
         joblist.append({
             "peroidic_unit_size":job_options["peroidic_unit_size"],
             "run_id":lastjobid,
             "d":dim,
+            "x_cut":job_options["x_cut"],
             "result_writer":res_writer
             })
         if(dim not in output_files):
@@ -49,25 +58,24 @@ def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
         lastjobid+=1
     return joblist,lastjobid
 
-def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_freq=1,useMPI=True):
+def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,write_freq=25,useMPI=True):
     global output_files
     job_options={
         "calcs_per_batch":calcs_per_batch,
         "peroidic_unit_size":peroidic_unit_size,
         "write_freq":write_freq,
-        "job_name":job_name
+        "job_name":job_name,
+        "x_cut":x_cut
         }
     lastrunid={highest_dimension:0,highest_dimension-1:0}
     is_total_conv=False
-    total_conv_checker={highest_dimension:convcrit.Overall_Diffusion_Conv(usefile=False),highest_dimension-1:convcrit.Overall_Diffusion_Conv(usefile=False)}
+    total_conv_checker={highest_dimension:convcrit.Rolling_Av_Conv(["mft"],usefile=False),
+                        highest_dimension-1:convcrit.Rolling_Av_Conv(["mft"],usefile=False)}
     loop_count=0
     conv_by_dim={highest_dimension:False,highest_dimension-1:False}
     while(not is_total_conv):
-        runs={}
         mpi_job_list=[]
         for i in range(2):
-            if(i==0 and one_dim_debug):
-                continue
             if(not conv_by_dim[highest_dimension-i]):
                 jlist,lastid=run_dim_batch(highest_dimension-i,job_options,batchnumber=loop_count,lastjobid=lastrunid[highest_dimension-i])
                 mpi_job_list+=jlist
@@ -76,22 +84,16 @@ def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_
         if(useMPI):
             from mpi4py.futures import MPIPoolExecutor
             with MPIPoolExecutor() as pool:
-                result = pool.map(single_diffusion_calc, mpi_job_list)
+                result = pool.map(single_first_passage_calc, mpi_job_list)
         else:
             for jp in mpi_job_list:
-                result.append(single_diffusion_calc(jp))
+                result.append(single_first_passage_calc(jp))
         cleaned_res={highest_dimension:[],highest_dimension-1:[]}
         for res in result:
             cleaned_res[res["dim"]].append(res)
-            print(res)
-            if(res["run_info"][0]["run_id"] not in runs):
-                runs[res["run_info"][0]["run_id"]]=[]
-            runs[res["run_info"][0]["run_id"]].append(res["run_info"])
         temp_cov=True
         rel_std_list={}
         for i in range(2):
-            if(i==0 and one_dim_debug):
-                continue
             conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(cleaned_res[highest_dimension-i])
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
@@ -100,12 +102,6 @@ def run_job(job_name,highest_dimension,calcs_per_batch,peroidic_unit_size,write_
         print(rel_std_list)
         reslog([is_total_conv,conv_by_dim,loop_count,rel_std_list])
         loop_count+=1
-        for rid in runs:
-            plt.figure()
-            x=[step["time"] for step in runs[rid]]
-            y=[step["D_mean"] for step in runs[rid]]
-            plt.plot(x,y)
 
-                
-if(__name__=="__main__"):
-	run_job("test0",2,10,3,useMPI=False)
+if(__name__=="__main__"):                
+	run_job("test1",11,2,10,3,useMPI=False)

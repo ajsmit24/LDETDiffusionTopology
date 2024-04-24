@@ -40,8 +40,10 @@ class RandomWalker():
                             #-particularly distance measurement-change on a peroidic graph
                             #this is currently not used see ~~peroidic option handling~~
                             "options[distance]":["euclidean"],#
-                            "endcriteria":["single_node_boundary","surface_boundary","conv_method","conv_class"],
-                            "endcriteria[surface_boundary]":["bound","writer"]
+                            "endcriteria":["single_node_boundary","surface_boundary",
+                                           "uni_dir_surface","conv_method","conv_class"],
+                            "endcriteria[surface_boundary]":["bound","writer"],
+                            "endcriteria[uni_dir_surface]":["bound_dist","bound_dim","writer"]
                             }
         
         #setup simple parameters
@@ -76,6 +78,16 @@ class RandomWalker():
         if("conv_method" in endcriteria):
             if(str(type(endcriteria['conv_method']))!="<class 'function'>"):
                 raise Exception("ERROR: endcriteria[conv_method] must be a function")
+        if("uni_dir_surface" in endcriteria):
+            k_req={"bound_dist":"a SIGNED integer that is the distance for staring position to the boundary",
+                   "writer":"a util resultwriter class",
+                   "bound_dim":"the dimension that the boundary distance is in",
+                   "reflecting":"if should mirror the boundary around the starting position, "+
+                   "this should generally be true"}
+            for k in self.valid_options["endcriteria[uni_dir_surface]"]:
+                if(k not in endcriteria["uni_dir_surface"]):
+                    raise Exception("ERROR: endcriteria[uni_dir_surface] must be a dictionary that contains the key "+
+                                    k+"| endcriteria[uni_dir_surface]["+k+"] must be "+k_req[k])
         if("surface_boundary" in endcriteria):
             k_req={"bound":"a float that is the distance to the surface","writer":"a util resultwriter class"}
             for k in self.valid_options["endcriteria[surface_boundary]"]:
@@ -159,8 +171,8 @@ class RandomWalker():
     ##in the class constructor
     def __step_account_for_pbc(self,old_point,new_point):
         if(self.graphType=="lattice"):
-            old_point=utils.lattice_cast_node(old_point)
-            new_point=utils.lattice_cast_node(new_point)
+            old_point=utils.lattice_cast_node(old_point,target=tuple)
+            new_point=utils.lattice_cast_node(new_point,target=tuple)
             #setup the pbc crossing tracker if it hasnt been setup yet
             if(self.pbc_passes==[]):
                 self.pbc_passes=[0]*len(old_point)
@@ -195,7 +207,10 @@ class RandomWalker():
                         self.pbc_passes[i]+=1
             #calculate the pbc corrected possition
             new_pos_pbc_cor=tuple(new_pos_pbc_cor[i]+self.pbc_passes[i]*self.options["latticeObj"].dimensions[i] for i in range(len(new_pos_pbc_cor)))
-            return utils.lattice_cast_node(new_pos_pbc_cor)
+            target=tuple
+            if(len(new_pos_pbc_cor)==1):
+                target=int
+            return utils.lattice_cast_node(new_pos_pbc_cor,target=target)
         else:
             #handle non-lattice graph pbc
             if("pbc_account_step" not in self.options["suppress_err"]):
@@ -237,6 +252,28 @@ class RandomWalker():
             if(self.distance>=self.endcriteria["surface_boundary"]["bound"]):
                 should_exit=True
                 self.endcriteria["surface_boundary"]["writer"].write({"mft":self.total_steps,
+                                                                      "pbc_pos":self.particle_pos_pbc_corrected,
+                                                                      "dist":self.distance,
+                                                                      "isconv":True
+                                                                      })
+                return should_exit
+        if("uni_dir_surface" in self.endcriteria):
+            cur_point_in_bound_dim=utils.lattice_cast_node(
+                    self.particle_pos_pbc_corrected,target=tuple
+                    )[self.endcriteria["uni_dir_surface"]["bound_dim"]]
+            starting_point_in_bound_dim=utils.lattice_cast_node(
+                    self.starting_position,target=tuple
+                    )[self.endcriteria["uni_dir_surface"]["bound_dim"]]
+            bound_dist=self.endcriteria["uni_dir_surface"]["bound_dist"]
+            criteria=False
+            if(self.endcriteria["uni_dir_surface"]["reflecting"]):
+                criteria=cur_point_in_bound_dim>=starting_point_in_bound_dim+bound_dist
+                criteria=criteria or cur_point_in_bound_dim <= starting_point_in_bound_dim-bound_dist
+            else:
+                raise Exception("NOT IMPLEMENTED")
+            if(criteria):
+                should_exit=True
+                self.endcriteria["uni_dir_surface"]["writer"].write({"mft":self.total_steps,
                                                                       "pbc_pos":self.particle_pos_pbc_corrected,
                                                                       "dist":self.distance,
                                                                       "isconv":True
