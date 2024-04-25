@@ -7,6 +7,7 @@ Created on Wed Apr 24 10:14:24 2024
 
 import sys
 sys.path.insert(0, '../common/')
+sys.path.insert(0, '/home/ajs193/cable_bacteria/diffusion_topology/common/')
 import integer_dimension_lattice as idl
 import utils
 import convergence_criteria as convcrit
@@ -132,4 +133,4 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
         loop_count+=1
 
 if(__name__=="__main__"):                
-	run_job(jobstem,args.cuttof,args.dimension,500,args.num_points,useMPI=True)
+	run_job(jobstem,args.cutoff,args.dimension,500,args.num_points,useMPI=True)
