@@ -8,6 +8,7 @@ import numpy as np
 import networkx as nx
 import math
 import random
+import itertools
 
 import utils
 
@@ -33,11 +34,28 @@ class UniformNDLatticeConstructor():
     def draw(self):
         nx.draw(self.graph, with_labels = True)
         
+    #fun fact networkx reorders the dimensions if they arent uniform
+    #ie if I make a [3,5] lattice the point (2,4) does not exist but (4,2) does
+    #so we need to store instead that the dimensions of that lattice were ordered
+    #ie 5,3 instead of 3,5     
+    def orient_dimensions(self):
+        nodelist=self.graph.nodes
+        if(len(self.dimensions)>5):
+            print("WARNING: method orient_dimensions scales very poorly with number of "+
+                  "dimensions. please consider passing the dimensions in the correct order"+
+                  " and editing this code")
+        pos_dim_sizes=set(itertools.permutations(self.dimensions,len(self.dimensions)))
+        for pd in pos_dim_sizes:
+            if(tuple(pdi-1 for pdi in pd) in nodelist):
+                self.dimensions=list(pd)
+                return
+        
     #starting_surface assumes the direction of flow will be that with the largest dimension
     #if all dimensions are equal size one will be chosen at random
     #or a dimension (spec with its index 0,1,2etc) can be set in options["flow"]
     def insert_particle(self):
         if(self.particle_position=="center"):
+            self.orient_dimensions()
             self.particle_position=utils.lattice_cast_node(tuple(math.floor(d/2) for d in self.dimensions))
             self.graph.nodes[self.particle_position]["occ"]=1
         elif(self.particle_position=="starting_surface"):

@@ -122,8 +122,10 @@ def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,pero
             with MPIPoolExecutor() as pool:
                 result = pool.map(single_first_passage_calc, mpi_job_list)
         else:
+            print("RUNNING")
             for jp in mpi_job_list:
                 result.append(single_first_passage_calc(jp))
+            print("DONE")
         cleaned_res={highest_dimension:[],highest_dimension-1:[]}
         for res in result:
             cleaned_res[res["dim"]].append(res)
@@ -140,4 +142,4 @@ def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,pero
         loop_count+=1
 
 if(__name__=="__main__"):                
-	run_job(jobstem,args.finite_dim_len,args.cutoff,args.dimension,500,args.num_points,useMPI=False)
+	run_job(jobstem,args.finite_dim_len,args.cutoff,args.dimension,3,args.num_points,useMPI=False)
