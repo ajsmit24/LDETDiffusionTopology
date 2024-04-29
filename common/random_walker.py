@@ -297,6 +297,7 @@ class RandomWalker():
                             "stack trace to source and class constructor for more details.")
         else:
             print("WARN:exceeded max steps in random walk")
+            log("WARN:exceeded max steps in random walk")
     
     def print_outcome(self):
         print(self.total_steps)

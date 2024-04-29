@@ -27,9 +27,12 @@ class UniformNDLatticeConstructor():
         self.graph=nx.grid_graph(dim=dims,periodic=periodic)
         self.particle_position=particle_position
         self.avail_positions=["center"]
+        self.reorientation={}
         if(particle_position in self.avail_positions):
             self.insert_particle()
         self.options=options
+        
+        
                 
     def draw(self):
         nx.draw(self.graph, with_labels = True)
@@ -44,11 +47,34 @@ class UniformNDLatticeConstructor():
             print("WARNING: method orient_dimensions scales very poorly with number of "+
                   "dimensions. please consider passing the dimensions in the correct order"+
                   " and editing this code")
-        pos_dim_sizes=set(itertools.permutations(self.dimensions,len(self.dimensions)))
-        for pd in pos_dim_sizes:
-            if(tuple(pdi-1 for pdi in pd) in nodelist):
+        all_perms=itertools.permutations(zip(self.dimensions,list(range(len(self.dimensions)))),len(self.dimensions))
+        pos_dim_sizes=[]
+        added_perms=set()
+        for perm in all_perms:
+            temp=tuple(p[0] for p in perm)
+            if(temp not in  added_perms):
+                added_perms.add(temp)
+                pos_dim_sizes.append([temp,tuple(p[1] for p in perm)])
+        reorientation_list=[]
+        for pos_dim_info in pos_dim_sizes:
+            pd=pos_dim_info[0]
+            temp=[]
+            if(len(self.dimensions)<2):
+                temp=utils.lattice_cast_node(tuple(pdi-1 for pdi in pd),target=int)
+            else:
+                temp=tuple(pdi-1 for pdi in pd)
+            if(temp in nodelist):
                 self.dimensions=list(pd)
-                return
+                reorientation_list=pos_dim_info[1]
+                break
+        for i in range(len(reorientation_list)):
+            self.reorientation[reorientation_list[i]]=i
+                
+        new_peroidic=[]
+        for i in range(len(self.periodic)):
+            new_peroidic.append(self.periodic[self.reorientation[i]])
+        self.periodic=new_peroidic
+        return
         
     #starting_surface assumes the direction of flow will be that with the largest dimension
     #if all dimensions are equal size one will be chosen at random

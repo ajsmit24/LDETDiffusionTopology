@@ -64,7 +64,7 @@ def single_first_passage_calc(params):
     endcriteria={
         "uni_dir_surface":{
             "bound_dist":surface_boundary,"writer":params["result_writer"],
-            "bound_dim":0,"reflecting":True}
+            "bound_dim":lattice.reorientation[0],"reflecting":True}
         }
     rand_walker=random_walker.RandomWalker(lattice.graph,particle_initial_pos=lattice.particle_position,
                                            endcriteria=endcriteria,options=options)
@@ -122,10 +122,8 @@ def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,pero
             with MPIPoolExecutor() as pool:
                 result = pool.map(single_first_passage_calc, mpi_job_list)
         else:
-            print("RUNNING")
             for jp in mpi_job_list:
                 result.append(single_first_passage_calc(jp))
-            print("DONE")
         cleaned_res={highest_dimension:[],highest_dimension-1:[]}
         for res in result:
             cleaned_res[res["dim"]].append(res)

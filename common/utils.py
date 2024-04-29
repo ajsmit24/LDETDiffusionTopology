@@ -55,6 +55,8 @@ class ResultWriter():
         f.close()
 
 
+
+
 def lattice_cast_node(node,target=None):
     if(target!=tuple and type(node)==tuple):
         if(len(node)==1):
