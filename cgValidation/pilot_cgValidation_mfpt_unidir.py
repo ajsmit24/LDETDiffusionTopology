@@ -123,7 +123,11 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
         temp_cov=True
         rel_std_list={}
         for i in range(2):
-            conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(cleaned_res[highest_dimension-i])
+            if(len(cleaned_res[highest_dimension-i])<1):
+                conv=False
+                rel_stds=1e99
+            else:
+                conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(cleaned_res[highest_dimension-i])
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
