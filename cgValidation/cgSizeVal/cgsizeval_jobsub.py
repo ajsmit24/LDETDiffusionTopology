@@ -11,11 +11,11 @@ else:
 	lattice_params=[3,5,7,11,27,51,101,201,501,1001]
 max_dim=2
 cutoff=11
-jobname="cgsv1"
+jobname="cgsv2"
 template="tmplt.sh"
 
 repl={
-"{par}":"et2024",
+"{par}":"et3,et2024",
 "{cores}":50,
 "{maxdim}":max_dim,
 "{cutoff}":cutoff,
