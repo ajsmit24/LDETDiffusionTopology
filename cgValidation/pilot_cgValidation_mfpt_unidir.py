@@ -102,6 +102,7 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
                         highest_dimension-1:convcrit.Rolling_Av_Conv(["mft"],usefile=False)}
     loop_count=0
     conv_by_dim={highest_dimension:False,highest_dimension-1:False}
+    prev_data={"relstd":{highest_dimension:1e99,highest_dimension-1:1e99},"conv":{highest_dimension:False,highest_dimension-1:False}}
     while(not is_total_conv):
         mpi_job_list=[]
         for i in range(2):
@@ -124,10 +125,12 @@ def run_job(job_name,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,
         rel_std_list={}
         for i in range(2):
             if(len(cleaned_res[highest_dimension-i])<1):
-                conv=False
-                rel_stds=1e99
+                rel_stds=prev_data["relstd"][highest_dimension-i]
+                conv=prev_data["conv"][highest_dimension-i]
             else:
                 conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(cleaned_res[highest_dimension-i])
+                prev_data["conv"][highest_dimension-i]=conv
+                prev_data["relstd"][highest_dimension-i]=rel_stds
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
