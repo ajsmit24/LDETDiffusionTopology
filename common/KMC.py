@@ -2,6 +2,7 @@
 import networkx as nx
 import random
 import math
+import utils
 
 
 
@@ -25,7 +26,7 @@ import math
 class KMC():
     def __init__(self,graph,initial_pos_options={"mode":"random","N":1},
                  convergence_criteria=None,supressErrors=set(),
-                 seed=0) -> None:
+                 seed=0,trajTracker=None,trackTransitions=False) -> None:
         self.graph=graph
         self.convergence_criteria=convergence_criteria
         self.initial_pos_options=initial_pos_options
@@ -37,6 +38,11 @@ class KMC():
         self.validate_graph()
         self.validate_convergence_params()
         
+        self.trackTransitions=trackTransitions
+        self.trajTracker=trajTracker
+        if(str(type(trajTracker)).find("ResultWriter")<0):
+            raise Exception("ERROR: trajTracker must be of type utils.ResultWriter")
+            
         self.time=0
         self.steps=0
         
@@ -212,14 +218,21 @@ class KMC():
         delT=(1/cumulative[-1])*math.log(1/r_time)
         self.time+=delT
         self.steps+=1
-        return should_continue
+        return should_continue,delT,transition_nodes
         
     def run(self):
         self.initialize_positions()
         isconv=False
         while(not isconv):
-            should_continue=self.KMC_step()
+            should_continue,time_incremented,transition_tacken=self.KMC_step()
             isconv=self.run_conv_checker() and should_continue
+            if(self.trajTracker!=None):
+                if(not self.trackTransitions):
+                    self.trajTracker.write(list(self.graph.nodes.items()))
+                else:
+                    self.trajTracker.write([list(self.graph.nodes.items()),
+                                            {"del_t":time_incremented,"transition":transition_tacken}])
+                
             
             
 if(__name__=="__main__"):
@@ -232,7 +245,8 @@ if(__name__=="__main__"):
     graph.add_edge(2,1, rate=2e7)
     graph.add_edge(0, 2, rate=3e7)
     graph.add_edge(2,0, rate=2e7)
-    kmc=KMC(graph,convergence_criteria={"maxsteps":50})
+    rw=utils.ResultWriter("test.txt")
+    kmc=KMC(graph,convergence_criteria={"maxsteps":50},trajTracker=rw,trackTransitions=True)
     kmc.run()
         
         
