@@ -14,7 +14,7 @@ def write_lattice_file():
    """
    lattice = {'nmuc':2,
               'coordmol':[[0.0, 0.0, 0.0], [0.5, 0.5, 0.0]],
-              'unitcell':[[1.0, 0.0, 0.0], [0.0, 1.7321, 0.0], [0.0, 0.0, 1000.0]],
+              'unitcell':[[1.0, 0.0, 0.0], [0.0, 1, 0.0], [0.0, 0.0, 1.0]],
               'supercell':[16, 16, 1],
               'unique':6,
               'uniqinter':[[1, 1, 1, 0, 0, 1], 
@@ -133,9 +133,10 @@ def K_to_eV(T):
 def write_T_dep_params(T):
     T_eV=K_to_eV(T)
     #sqrt propotionality constant
-    prop=0.029/math.sqrt(T_eV)
+    prop=0.029/math.sqrt(0.025)
     params = {'javg':[0.058, 0.058, 0.058],
               'sigma':[prop*math.sqrt(T_eV)]*3,
+              #'sigma':[0.029]*3,
               'nrepeat':50,
               "iseed":3987187,
               'invtau':0.005,
@@ -149,7 +150,7 @@ def read_std_res():
     data=json.loads(f.read())
     f.close()
     return (data["mobx"]+data["moby"])/2,sum(data["squared_length"])/len(data["squared_length"])
-def gen_temp_dep_plot(minT=10,maxT=750,nT=150):
+def gen_temp_dep_plot(minT=10,maxT=500,nT=10):
     temp_range=np.linspace(minT,maxT,nT)
     write_lattice_file()
     points=[]
@@ -167,7 +168,70 @@ def gen_temp_dep_plot(minT=10,maxT=750,nT=150):
     f=open("points.json","w+")
     f.write(json.dumps({"points":points}))
     f.close()
-
+def vis(do_static=True):
+    f=open("points.json","r")
+    data=json.loads(f.read())
+    f.close()
+    static={}
+    data["points"]=[p for p in data["points"] if(p[3]<0.4)]
+    if(do_static):
+        for p in data["points"]:
+            if(p[3] not in static):
+                static[p[3]]=[]
+            static[p[3]].append(p)
+    else:
+        static[0]=[p for p in data["points"] if(p[3]<0.01 and p[3]>-0.001)]
+    
+    for s in static:
+        points=static[s]
+        points=[p for p in points]
+        fig, ax1 = plt.subplots()
+        
+        plt.scatter([p[0] for p in points],[p[1] for p in points],c=[p[3] for p in points])
+        #color = 'tab:blue'
+        #ax2 = ax1.twinx()
+        #ax2.scatter([p[0] for p in points],[p[2] for p in points],color=color)
+        #ax2.scatter([p[0] for p in points],[p[2] for p in points],color=color)
+        #ax2.tick_params(axis='y', labelcolor=color)
+        if(do_static):
+            plt.colorbar()
+            plt.title("static disorder: "+str(s))
+        else:
+            plt.title("Mobility vs Temperature for Highly Pure Synthetic Organics")
+        plt.xlabel('Temperature (K)')
+        plt.ylabel('Mobility')
+        plt.show()
+        plt.figure()
+def vis_static_max():
+    f=open("points.json","r")
+    data=json.loads(f.read())
+    f.close()
+    static={}
+    data["points"]=[p for p in data["points"]]
+    for p in data["points"]:
+            if(p[3] not in static):
+                static[p[3]]=[]
+            static[p[3]].append(p)
+    maxpoints=[]
+    for s in static:
+        maxmob=max([p[1] for p in static[s]])
+        maxmobdex=[p[1] for p in static[s]].index(maxmob)
+        maxpoints.append([s,static[s][maxmobdex][0]])
+    plt.scatter([p[0] for p in maxpoints],[p[1] for p in maxpoints])
+    plt.title("Transition Temperature vs Static Disorder")
+    plt.xlabel('% static contribution to disorder*')
+    plt.ylabel('Transition temperature**')
+    plt.text(0,-10,'*Negative static disorder is not realizabile in real\n '+
+             'systems but demonstrates the trend from a theory stand point',
+             ha='center')
+    plt.text(0,-17.5,'**Minimum allowed temperature was 10K due to numeric '+
+             'limitations.\n Points at 10K may represent'+
+             ' lower temperature transitions.',
+             ha='center')
 if __name__  == '__main__':
    #main()
-   gen_temp_dep_plot()
+   #gen_temp_dep_plot()
+   #vis()
+   vis_static_max()
+   vis(do_static=False)
+   #test_calcs()
