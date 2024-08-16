@@ -2,7 +2,7 @@ from pydoc import describe
 import numpy as np
 import json
 from scipy import linalg
-from tqdm.auto import tqdm
+#from tqdm.auto import tqdm
 
 class Molecules:
    def __init__(self, nmuc=None, coordmol=None, unitcell=None, 
@@ -246,7 +246,7 @@ class Molecules:
       self.results['avg_sqly'] = []
       self.results['avg_sql'] = []
 
-      for i in tqdm(range(1, self.nrepeat + 1), desc='Calculating average of squared transient localization'):
+      for i in range(1, self.nrepeat + 1):
          sqlx, sqly = self.get_squared_length()
          self.results['squared_length_x'].append(sqlx)
          self.results['squared_length_y'].append(sqly)
