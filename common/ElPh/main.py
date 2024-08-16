@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 hbar=6.582119569e-16
+transfer_integral=0.058
 
 def write_lattice_file():
    """Write the lattice parameters json file
@@ -139,8 +140,8 @@ def write_T_dep_params(T,fn='params.json',seed=3987187,static_disorder=0):
     base_temp=0.025
     #sqrt propotionality constant
     prop=base_dynamic/math.sqrt(base_temp)
-    params = {'javg':[0.058, 0.058, 0.058],
-              'sigma':[prop*math.sqrt(T_eV)+base_dynamic*static_disorder]*3,
+    params = {'javg':[transfer_integral]*3,
+              'sigma':[prop*math.sqrt(T_eV)]*3,
               'nrepeat':50,
               "iseed":seed,
               'invtau':0.005,
@@ -161,7 +162,7 @@ def calc_T_point(p):
     s=p["static"]
     fn="params_"+str(T)+"_"+str(s)
     write_T_dep_params(T,fn=fn+".json",seed=p["seed"],static_disorder=s)
-    mols = Molecules(lattice_file='lattice',params_file=fn)
+    mols = Molecules(lattice_file='lattice',params_file=fn,static_disorder_params={"rel%":s})
     mobx, moby = mols.get_mobility()
     data=mols.results
     mob,sqlen=((data["mobx"]+data["moby"])/2,sum(data["squared_length"])/len(data["squared_length"]))
@@ -217,7 +218,7 @@ def vis(do_static=True):
         points=[p for p in points]
         fig, ax1 = plt.subplots()
         
-        plt.scatter([p[0] for p in points],[p[1] for p in points],c=[p[3] for p in points])
+        plt.scatter([K_to_eV(p[0])/transfer_integral for p in points],[p[1] for p in points],c=[p[3] for p in points])
         #color = 'tab:blue'
         #ax2 = ax1.twinx()
         #ax2.scatter([p[0] for p in points],[p[2] for p in points],color=color)
@@ -228,7 +229,7 @@ def vis(do_static=True):
             plt.title("static disorder: "+str(s))
         else:
             plt.title("Mobility vs Temperature for Highly Pure Synthetic Organics")
-        plt.xlabel('Temperature (K)')
+        plt.xlabel('Temperature/J')
         plt.ylabel('Mobility')
         plt.show()
         plt.figure()
@@ -247,19 +248,19 @@ def vis_static_max():
         maxmob=max([p[1] for p in static[s]])
         maxmobdex=[p[1] for p in static[s]].index(maxmob)
         maxpoints.append([s,static[s][maxmobdex][0]])
-    plt.scatter([p[0] for p in maxpoints],[p[1] for p in maxpoints])
+    plt.scatter([p[0] for p in maxpoints],[K_to_eV(p[1])/transfer_integral  for p in maxpoints])
     plt.title("Transition Temperature vs Static Disorder")
     plt.xlabel('% static contribution to disorder*')
-    plt.ylabel('Transition temperature**')
-    plt.text(0,-10,'*Negative static disorder is not realizabile in real\n '+
+    plt.ylabel('Transition temperature/J**')
+    """plt.text(0,-10,'*Negative static disorder is not realizabile in real\n '+
              'systems but demonstrates the trend from a theory stand point',
              ha='center')
     plt.text(0,-17.5,'**Minimum allowed temperature was 10K due to numeric '+
              'limitations.\n Points at 10K may represent'+
              ' lower temperature transitions.',
-             ha='center')
+             ha='center')"""
 if __name__  == '__main__':
-    pass
+   pass
    #main()
    #gen_temp_dep_plot()
    #vis()
