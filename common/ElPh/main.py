@@ -3,6 +3,8 @@ from pathlib import Path
 from molecules import Molecules
 import numpy as np
 import math
+from sklearn.model_selection import ParameterGrid
+
 
 import matplotlib.pyplot as plt
 import matplotlib
@@ -130,19 +132,21 @@ def test_calcs():
 def K_to_eV(T):
     kB=8.617333262e-5
     return kB*T
-def write_T_dep_params(T):
+def write_T_dep_params(T,fn='params.json',seed=3987187,static_disorder=0):
     T_eV=K_to_eV(T)
+    #300K dynamic disorder
+    base_dynamic=0.029
+    base_temp=0.025
     #sqrt propotionality constant
-    prop=0.029/math.sqrt(0.025)
+    prop=base_dynamic/math.sqrt(base_temp)
     params = {'javg':[0.058, 0.058, 0.058],
-              'sigma':[prop*math.sqrt(T_eV)]*3,
-              #'sigma':[0.029]*3,
+              'sigma':[prop*math.sqrt(T_eV)+base_dynamic*static_disorder]*3,
               'nrepeat':50,
-              "iseed":3987187,
+              "iseed":seed,
               'invtau':0.005,
               'temp':T_eV
     }
-    with open('params.json', 'w', encoding='utf-8') as f:
+    with open(fn, 'w', encoding='utf-8') as f:
        json.dump(params, f, ensure_ascii=False, indent=4)
        
 def read_std_res():
@@ -150,23 +154,49 @@ def read_std_res():
     data=json.loads(f.read())
     f.close()
     return (data["mobx"]+data["moby"])/2,sum(data["squared_length"])/len(data["squared_length"])
-def gen_temp_dep_plot(minT=10,maxT=500,nT=10):
+
+
+def calc_T_point(p):
+    T=p["temp"]
+    s=p["static"]
+    fn="params_"+str(T)+"_"+str(s)
+    write_T_dep_params(T,fn=fn+".json",seed=p["seed"],static_disorder=s)
+    mols = Molecules(lattice_file='lattice',params_file=fn)
+    mobx, moby = mols.get_mobility()
+    data=mols.results
+    mob,sqlen=((data["mobx"]+data["moby"])/2,sum(data["squared_length"])/len(data["squared_length"]))
+    f=open("log.log","a")
+    f.write("DONE "+str(T)+", "+str(s)+"\n")
+    f.close()
+    return [T,mob,sqlen,s]
+
+
+def gen_temp_dep_plot(minT=10,maxT=150,nT=70,useMPI=False,staticmin=-0.25,staticmax=0.25,staticn=50):
     temp_range=np.linspace(minT,maxT,nT)
+    static_range=np.linspace(staticmin,staticmax,staticn)
+    params=ParameterGrid({"static":static_range,"temp":temp_range})
+    params_list=[]
+    for p in params:
+       params_list.append({"temp":p["temp"],"seed":len(params_list),"static":p["static"]})
+    params=params_list
     write_lattice_file()
-    points=[]
-    for T in temp_range:
-        write_T_dep_params(T)
-        mols = Molecules(lattice_file='lattice',params_file='params')
-        mobx, moby = mols.get_mobility()
-        with open('results.json', 'w', encoding='utf-8') as f:
-            json.dump(mols.results, f)
-        mob,sqlen=read_std_res()
-        points.append([T,mob])
-    #plt.scatter([p[0] for p in points],[p[1] for p in points])
-    #plt.show()
-    #plt.figure()
+    result=[]
+    if(useMPI):
+       from mpi4py.futures import MPIPoolExecutor
+       with MPIPoolExecutor() as pool:
+            result = pool.map(calc_T_point, params)
+    else:
+       for p in params:
+           result.append(calc_T_point(p))
+    result=[r for r in result]
+    f=open("log.log","a")
+    f.write("HERE\n")
+    f.close()
+    f=open("log.log","a")
+    f.write(str(type(result)))
+    f.close()
     f=open("points.json","w+")
-    f.write(json.dumps({"points":points}))
+    f.write(json.dumps({"points":result}))
     f.close()
 def vis(do_static=True):
     f=open("points.json","r")
@@ -229,9 +259,11 @@ def vis_static_max():
              ' lower temperature transitions.',
              ha='center')
 if __name__  == '__main__':
+    pass
    #main()
    #gen_temp_dep_plot()
    #vis()
-   vis_static_max()
-   vis(do_static=False)
+   #vis_static_max()
+   #vis(do_static=False)
    #test_calcs()
+   #gen_temp_dep_plot(useMPI=True)

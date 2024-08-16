@@ -249,8 +249,7 @@ class Molecules:
       self.results['squared_length'] = []
       self.results['avg_sqlx'] = []
       self.results['avg_sqly'] = []
-      self.results['avg_sql'] = []
-      
+      self.results['avg_sql'] = []      
       print('Calculating average of squared transient localization')
       for i in range(1, self.nrepeat + 1):
          sqlx, sqly = self.get_squared_length()
