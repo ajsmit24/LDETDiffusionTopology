@@ -177,7 +177,7 @@ class Molecules:
 
       hamiltonian_mm = self.javg[transinter_mm] + self.sigma[transinter_mm] * rnd_mm
       if(self.static_disorder_params["rel%"]>0):
-          hamiltonian_mm+= self.sigma[transinter_mm] * self.static_disorder_params["rel%"]
+          hamiltonian_mm+= ((self.sigma[transinter_mm]/self.sigma[0])*self.jav[0]) * self.static_disorder_params["rel%"]
     
       return hamiltonian_mm
 

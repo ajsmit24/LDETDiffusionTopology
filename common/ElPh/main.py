@@ -172,7 +172,7 @@ def calc_T_point(p):
     return [T,mob,sqlen,s]
 
 
-def gen_temp_dep_plot(minT=10,maxT=150,nT=70,useMPI=False,staticmin=-0.25,staticmax=0.25,staticn=50):
+def gen_temp_dep_plot(minT=10,maxT=350,nT=70,useMPI=False,staticmin=0,staticmax=100,staticn=200):
     temp_range=np.linspace(minT,maxT,nT)
     static_range=np.linspace(staticmin,staticmax,staticn)
     params=ParameterGrid({"static":static_range,"temp":temp_range})
@@ -199,33 +199,57 @@ def gen_temp_dep_plot(minT=10,maxT=150,nT=70,useMPI=False,staticmin=-0.25,static
     f=open("points.json","w+")
     f.write(json.dumps({"points":result}))
     f.close()
-def vis(do_static=True):
+    
+def get_expo_fit(xvar,yvar):
+    maxdex=yvar.index(max(yvar))
+    coef=np.polyfit([-1*(1/xvar[i]) for i in range(maxdex)], np.log([yvar[i] for i in range(maxdex)]), 1)
+    def expofit(x):
+        return [math.exp(coef[1]) * math.exp(coef[0] * (-1/xi)) for xi in x]
+    return expofit,coef,maxdex
+def vis(do_static=True,norm_mob=True):
     f=open("points.json","r")
     data=json.loads(f.read())
     f.close()
     static={}
-    data["points"]=[p for p in data["points"] if(p[3]<0.4)]
+    data["points"]=[p for p in data["points"]]
     if(do_static):
         for p in data["points"]:
             if(p[3] not in static):
                 static[p[3]]=[]
             static[p[3]].append(p)
     else:
-        static[0]=[p for p in data["points"] if(p[3]<0.01 and p[3]>-0.001)]
+        #static[0]=[p for p in data["points"] if(p[3]<0.01 and p[3]>-0.001)]
+        static[0]=[p for p in data["points"] if(p[3]>0.95 and p[3]<1.05)]
     
     for s in static:
+        if(s<3):
+            continue
         points=static[s]
-        points=[p for p in points]
+        points=[p for p in points if(not np.isnan(p[1]))]
         fig, ax1 = plt.subplots()
+        normfactor=1
+        if(norm_mob):
+            diff=[abs(100-p[0]) for p in points]
+            normfactor=points[diff.index(min(diff))][1]
+        color = 'tab:red'
+        #ax1.scatter([p[0] for p in points],[p[1] for p in points],color=color)
+        xvar=[K_to_eV(p[0])/transfer_integral for p in points]
+        yvar=[p[1]/normfactor for p in points]
+        ax1.scatter(xvar,yvar,color=color)
+        color = 'tab:blue'
+        ax2 = ax1.twinx()
+        ax2.scatter(xvar,[p[2] for p in points],color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
         
-        plt.scatter([K_to_eV(p[0])/transfer_integral for p in points],[p[1] for p in points],c=[p[3] for p in points])
-        #color = 'tab:blue'
-        #ax2 = ax1.twinx()
-        #ax2.scatter([p[0] for p in points],[p[2] for p in points],color=color)
-        #ax2.scatter([p[0] for p in points],[p[2] for p in points],color=color)
-        #ax2.tick_params(axis='y', labelcolor=color)
+        expofit,coef,maxdex=get_expo_fit(xvar,yvar)
+        print(maxdex)
+        ax1.plot(xvar, expofit(xvar),'--g', label="Fitted Curve")
+        ax1.scatter([xvar[i] for i in range(maxdex)], [yvar[i] for i in range(maxdex)],color="tab:green")
+        print(coef[0],math.exp(coef[1]))
+        print(coef[0]*transfer_integral)
+
         if(do_static):
-            plt.colorbar()
+            #plt.colorbar()
             plt.title("static disorder: "+str(s))
         else:
             plt.title("Mobility vs Temperature for Highly Pure Synthetic Organics")
@@ -233,6 +257,30 @@ def vis(do_static=True):
         plt.ylabel('Mobility')
         plt.show()
         plt.figure()
+        
+def plot_activation_energy():
+    f=open("points.json","r")
+    data=json.loads(f.read())
+    f.close()
+    static={}
+    data["points"]=[p for p in data["points"]]
+    for p in data["points"]:
+            if(p[3] not in static):
+                static[p[3]]=[]
+            static[p[3]].append(p)
+    plotpoints=[]
+    for s in static:
+        slist=[p for p in static[s] if(not np.isnan(p[1]))]
+        fitx=[K_to_eV(p[0])/transfer_integral for p in slist]
+        diff=[abs(100-p[0]) for p in slist]
+        normfactor=slist[diff.index(min(diff))][1]
+        fity=[p[1]/normfactor for p in slist]
+        expofit,coef,maxdex=get_expo_fit(fitx,fity)
+        plotpoints.append([s,coef[0]*transfer_integral])
+    x=[p[0] for p in plotpoints]
+    y=[p[1]  for p in plotpoints]
+    plt.scatter(x,y)
+        
 def vis_static_max():
     f=open("points.json","r")
     data=json.loads(f.read())
@@ -245,10 +293,13 @@ def vis_static_max():
             static[p[3]].append(p)
     maxpoints=[]
     for s in static:
-        maxmob=max([p[1] for p in static[s]])
-        maxmobdex=[p[1] for p in static[s]].index(maxmob)
-        maxpoints.append([s,static[s][maxmobdex][0]])
-    plt.scatter([p[0] for p in maxpoints],[K_to_eV(p[1])/transfer_integral  for p in maxpoints])
+        slist=[p for p in static[s] if(not np.isnan(p[1]))]
+        maxmob=max([p[1] for p in slist])
+        maxmobdex=[p[1] for p in slist].index(maxmob)
+        maxpoints.append([s,slist[maxmobdex][0]])
+    x=[p[0] for p in maxpoints]
+    y=[K_to_eV(p[1])/transfer_integral  for p in maxpoints]
+    #plt.scatter(x,y)
     plt.title("Transition Temperature vs Static Disorder")
     plt.xlabel('% static contribution to disorder*')
     plt.ylabel('Transition temperature/J**')
@@ -259,12 +310,19 @@ def vis_static_max():
              'limitations.\n Points at 10K may represent'+
              ' lower temperature transitions.',
              ha='center')"""
+    coef = np.polyfit(x,y,1)
+    m,b = coef
+    poly1d_fn = np.poly1d(coef) 
+    plt.plot(x,y, 'yo', x, poly1d_fn(x), '--k',label=f'$y = {m:.1f}x {b:+.1f}$')
+    plt.legend()
+    
+    
 if __name__  == '__main__':
-   pass
    #main()
    #gen_temp_dep_plot()
-   #vis()
-   #vis_static_max()
+   vis()
+   plot_activation_energy()
+   vis_static_max()
    #vis(do_static=False)
    #test_calcs()
    #gen_temp_dep_plot(useMPI=True)
