@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 hbar=6.582119569e-16
-transfer_integral=0.058
+#transfer_integral=0.058
+transfer_integral=0.1
 
 def write_lattice_file():
    """Write the lattice parameters json file
@@ -133,16 +134,17 @@ def test_calcs():
 def K_to_eV(T):
     kB=8.617333262e-5
     return kB*T
-def write_T_dep_params(T,fn='params.json',seed=3987187,static_disorder=0):
+def write_T_dep_params(T,fn='params.json',seed=3987187):
     T_eV=K_to_eV(T)
     #300K dynamic disorder
-    base_dynamic=0.029
+    base_dynamic_rel=0.029/0.058
     base_temp=0.025
+    base_dynamic=base_dynamic_rel*transfer_integral
     #sqrt propotionality constant
-    prop=base_dynamic/math.sqrt(base_temp)
+    prop=0.029/math.sqrt(base_temp)
     params = {'javg':[transfer_integral]*3,
               'sigma':[prop*math.sqrt(T_eV)]*3,
-              'nrepeat':50,
+              'nrepeat':250,
               "iseed":seed,
               'invtau':0.005,
               'temp':T_eV
@@ -161,7 +163,7 @@ def calc_T_point(p):
     T=p["temp"]
     s=p["static"]
     fn="params_"+str(T)+"_"+str(s)
-    write_T_dep_params(T,fn=fn+".json",seed=p["seed"],static_disorder=s)
+    write_T_dep_params(T,fn=fn+".json",seed=p["seed"])
     mols = Molecules(lattice_file='lattice',params_file=fn,static_disorder_params={"rel%":s})
     mobx, moby = mols.get_mobility()
     data=mols.results
@@ -322,7 +324,7 @@ if __name__  == '__main__':
    #gen_temp_dep_plot()
    vis()
    plot_activation_energy()
-   vis_static_max()
+   #vis_static_max()
    #vis(do_static=False)
    #test_calcs()
    #gen_temp_dep_plot(useMPI=True)
