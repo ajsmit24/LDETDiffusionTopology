@@ -176,8 +176,12 @@ class Molecules:
       rnd_mm = np.tril(rnd_mm) + np.tril(rnd_mm, -1).T
 
       hamiltonian_mm = self.javg[transinter_mm] + self.sigma[transinter_mm] * rnd_mm
+      #print(self.javg[transinter_mm],"-"*10,self.sigma[transinter_mm],"*"*50)
+      print(self.javg[1],"*"*5,self.sigma[transinter_mm]/self.sigma[1],"&"*5,self.sigma[transinter_mm],"#"*5,((self.sigma[transinter_mm]/self.sigma[1])*self.javg[1]),"|"*5)
+      #print(((self.sigma[transinter_mm]/self.sigma[1])*self.javg[1]) * self.static_disorder_params["rel%"])
+
       if(self.static_disorder_params["rel%"]>0):
-          hamiltonian_mm+= ((self.sigma[transinter_mm]/self.sigma[0])*self.jav[0]) * self.static_disorder_params["rel%"]
+          hamiltonian_mm+= ((self.sigma[transinter_mm]/self.sigma[1])*self.javg[1]) * self.static_disorder_params["rel%"]
     
       return hamiltonian_mm
 

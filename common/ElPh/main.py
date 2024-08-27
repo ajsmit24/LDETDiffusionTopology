@@ -144,7 +144,7 @@ def write_T_dep_params(T,fn='params.json',seed=3987187):
     prop=0.029/math.sqrt(base_temp)
     params = {'javg':[transfer_integral]*3,
               'sigma':[prop*math.sqrt(T_eV)]*3,
-              'nrepeat':250,
+              'nrepeat':25,
               "iseed":seed,
               'invtau':0.005,
               'temp':T_eV
@@ -216,18 +216,32 @@ def vis(do_static=True,norm_mob=True):
     data["points"]=[p for p in data["points"]]
     if(do_static):
         for p in data["points"]:
-            if(p[3] not in static):
-                static[p[3]]=[]
-            static[p[3]].append(p)
+                if(p[4] not in static):
+                    static[p[4]]={}
+                if(p[0] not in static[p[4]]):
+                    static[p[4]][p[0]]={"mob":[],"loc":[]}
+                static[p[4]][p[0]]["mob"].append(p[1])
+                static[p[4]][p[0]]["loc"].append(p[2])
+        new_static={}
+        for s in static:
+            new_static[s]=[]
+            for t in static[s]:
+                mob=static[s][t]["mob"]
+                loc=static[s][t]["loc"]
+                new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
+        static=new_static
     else:
         #static[0]=[p for p in data["points"] if(p[3]<0.01 and p[3]>-0.001)]
         static[0]=[p for p in data["points"] if(p[3]>0.95 and p[3]<1.05)]
     
     for s in static:
-        if(s<3):
+        if(s<1):
             continue
         points=static[s]
         points=[p for p in points if(not np.isnan(p[1]))]
+        if(len(points)<1):
+            print("NO DATA FOR ",s)
+            continue
         fig, ax1 = plt.subplots()
         normfactor=1
         if(norm_mob):
@@ -265,11 +279,23 @@ def plot_activation_energy():
     data=json.loads(f.read())
     f.close()
     static={}
+    tempdata={}
     data["points"]=[p for p in data["points"]]
     for p in data["points"]:
-            if(p[3] not in static):
-                static[p[3]]=[]
-            static[p[3]].append(p)
+            if(p[4] not in static):
+                static[p[4]]={}
+            if(p[0] not in static[p[4]]):
+                static[p[4]][p[0]]={"mob":[],"loc":[]}
+            static[p[4]][p[0]]["mob"].append(p[1])
+            static[p[4]][p[0]]["loc"].append(p[2])
+    new_static={}
+    for s in static:
+        new_static[s]=[]
+        for t in static[s]:
+            mob=static[s][t]["mob"]
+            loc=static[s][t]["loc"]
+            new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
+    static=new_static
     plotpoints=[]
     for s in static:
         slist=[p for p in static[s] if(not np.isnan(p[1]))]
@@ -282,6 +308,7 @@ def plot_activation_energy():
     x=[p[0] for p in plotpoints]
     y=[p[1]  for p in plotpoints]
     plt.scatter(x,y)
+    plt.figure()
         
 def vis_static_max():
     f=open("points.json","r")
@@ -290,9 +317,21 @@ def vis_static_max():
     static={}
     data["points"]=[p for p in data["points"]]
     for p in data["points"]:
-            if(p[3] not in static):
-                static[p[3]]=[]
-            static[p[3]].append(p)
+            print(p)
+            if(p[4] not in static):
+                static[p[4]]={}
+            if(p[0] not in static[p[4]]):
+                static[p[4]][p[0]]={"mob":[],"loc":[]}
+            static[p[4]][p[0]]["mob"].append(p[1])
+            static[p[4]][p[0]]["loc"].append(p[2])
+    new_static={}
+    for s in static:
+        new_static[s]=[]
+        for t in static[s]:
+            mob=static[s][t]["mob"]
+            loc=static[s][t]["loc"]
+            new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
+    static=new_static
     maxpoints=[]
     for s in static:
         slist=[p for p in static[s] if(not np.isnan(p[1]))]
@@ -324,7 +363,8 @@ if __name__  == '__main__':
    #gen_temp_dep_plot()
    vis()
    plot_activation_energy()
-   #vis_static_max()
+   vis_static_max()
    #vis(do_static=False)
    #test_calcs()
    #gen_temp_dep_plot(useMPI=True)
+   #gen_temp_dep_plot(useMPI=False)
