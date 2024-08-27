@@ -4,7 +4,7 @@ from molecules import Molecules
 import numpy as np
 import math
 from sklearn.model_selection import ParameterGrid
-
+import os
 
 import matplotlib.pyplot as plt
 import matplotlib
@@ -134,6 +134,12 @@ def test_calcs():
 def K_to_eV(T):
     kB=8.617333262e-5
     return kB*T
+
+def res_write(res):
+    f=open("res.out","a")
+    f.write(json.dumps(res)+"\n")
+    f.close()
+
 def write_T_dep_params(T,fn='params.json',seed=3987187):
     T_eV=K_to_eV(T)
     #300K dynamic disorder
@@ -164,23 +170,30 @@ def calc_T_point(p):
     s=p["static"]
     fn="params_"+str(T)+"_"+str(s)
     write_T_dep_params(T,fn=fn+".json",seed=p["seed"])
-    mols = Molecules(lattice_file='lattice',params_file=fn,static_disorder_params={"rel%":s})
+    mols = Molecules(lattice_file='lattice',params_file=fn,static_disorder_params={"abs":s})
     mobx, moby = mols.get_mobility()
     data=mols.results
     mob,sqlen=((data["mobx"]+data["moby"])/2,sum(data["squared_length"])/len(data["squared_length"]))
+    os.remove(fn+".json")
     f=open("log.log","a")
-    f.write("DONE "+str(T)+", "+str(s)+"\n")
+    f.write("DONE "+str(T)+", "+str(s)+","+str(p["s_true"])+"\n")
     f.close()
-    return [T,mob,sqlen,s]
+    res_write([T,mob,sqlen,s,p["s_true"]])
 
+def get_rand_static(s):
+    return np.random.normal(0,1)*s
 
-def gen_temp_dep_plot(minT=10,maxT=350,nT=70,useMPI=False,staticmin=0,staticmax=100,staticn=200):
+def gen_temp_dep_plot(minT=10,maxT=1000,nT=90,useMPI=False,staticmin=0,staticmax=10,staticn=10,staticreps=5):
     temp_range=np.linspace(minT,maxT,nT)
     static_range=np.linspace(staticmin,staticmax,staticn)
     params=ParameterGrid({"static":static_range,"temp":temp_range})
     params_list=[]
     for p in params:
-       params_list.append({"temp":p["temp"],"seed":len(params_list),"static":p["static"]})
+       for i in range(staticreps):
+          s=p["static"]*transfer_integral
+          if(staticreps>1):
+             s=get_rand_static(s)
+          params_list.append({"temp":p["temp"],"seed":len(params_list),"static":s,"s_true":p["static"]})
     params=params_list
     write_lattice_file()
     result=[]
@@ -322,9 +335,9 @@ def vis_static_max():
 if __name__  == '__main__':
    #main()
    #gen_temp_dep_plot()
-   vis()
-   plot_activation_energy()
+   #vis()
+   #plot_activation_energy()
    #vis_static_max()
    #vis(do_static=False)
    #test_calcs()
-   #gen_temp_dep_plot(useMPI=True)
+   gen_temp_dep_plot(useMPI=True)
