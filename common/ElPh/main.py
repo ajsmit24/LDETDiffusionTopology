@@ -126,7 +126,7 @@ def test_calcs():
     write_lattice_file()
     write_params_file()
     mols = Molecules(lattice_file='lattice', 
-    params_file='params')
+    params_file='params',static_disorder_params={"abs":0.02})
     mobx, moby = mols.get_mobility()
     with open('results.json', 'w', encoding='utf-8') as f:
        json.dump(mols.results, f)
@@ -176,24 +176,19 @@ def calc_T_point(p):
     mob,sqlen=((data["mobx"]+data["moby"])/2,sum(data["squared_length"])/len(data["squared_length"]))
     os.remove(fn+".json")
     f=open("log.log","a")
-    f.write("DONE "+str(T)+", "+str(s)+","+str(p["s_true"])+"\n")
+    f.write("DONE "+str(T)+", "+str(s)+"\n")
     f.close()
-    res_write([T,mob,sqlen,s,p["s_true"]])
+    res_write([T,mob,sqlen,s])
 
-def get_rand_static(s):
-    return np.random.normal(0,1)*s
 
-def gen_temp_dep_plot(minT=10,maxT=1000,nT=90,useMPI=False,staticmin=0,staticmax=10,staticn=10,staticreps=5):
+def gen_temp_dep_plot(minT=10,maxT=1000,nT=90,useMPI=False,staticmin=0,staticmax=10,staticn=10):
     temp_range=np.linspace(minT,maxT,nT)
     static_range=np.linspace(staticmin,staticmax,staticn)
     params=ParameterGrid({"static":static_range,"temp":temp_range})
     params_list=[]
     for p in params:
-       for i in range(staticreps):
-          s=p["static"]*transfer_integral
-          if(staticreps>1):
-             s=get_rand_static(s)
-          params_list.append({"temp":p["temp"],"seed":len(params_list),"static":s,"s_true":p["static"]})
+        s0=p["static"]*transfer_integral
+        params_list.append({"temp":p["temp"],"seed":len(params_list),"static":s0})
     params=params_list
     write_lattice_file()
     result=[]
@@ -215,6 +210,31 @@ def gen_temp_dep_plot(minT=10,maxT=1000,nT=90,useMPI=False,staticmin=0,staticmax
     f.write(json.dumps({"points":result}))
     f.close()
     
+def parse_with_static_repeats(data):
+    static={}
+    for p in data["points"]:
+            if(p[4] not in static):
+                static[p[4]]={}
+            if(p[0] not in static[p[4]]):
+                static[p[4]][p[0]]={"mob":[],"loc":[]}
+            static[p[4]][p[0]]["mob"].append(p[1])
+            static[p[4]][p[0]]["loc"].append(p[2])
+    new_static={}
+    for s in static:
+        new_static[s]=[]
+        for t in static[s]:
+            mob=static[s][t]["mob"]
+            loc=static[s][t]["loc"]
+            new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
+    return new_static
+def basic_len3_parser(data):
+    static={}
+    for p in data["points"]:
+            if(p[3] not in static):
+                static[p[3]]=[]
+            static[p[3]].append(p)
+    return static
+    
 def get_expo_fit(xvar,yvar):
     maxdex=yvar.index(max(yvar))
     coef=np.polyfit([-1*(1/xvar[i]) for i in range(maxdex)], np.log([yvar[i] for i in range(maxdex)]), 1)
@@ -228,21 +248,8 @@ def vis(do_static=True,norm_mob=True):
     static={}
     data["points"]=[p for p in data["points"]]
     if(do_static):
-        for p in data["points"]:
-                if(p[4] not in static):
-                    static[p[4]]={}
-                if(p[0] not in static[p[4]]):
-                    static[p[4]][p[0]]={"mob":[],"loc":[]}
-                static[p[4]][p[0]]["mob"].append(p[1])
-                static[p[4]][p[0]]["loc"].append(p[2])
-        new_static={}
-        for s in static:
-            new_static[s]=[]
-            for t in static[s]:
-                mob=static[s][t]["mob"]
-                loc=static[s][t]["loc"]
-                new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
-        static=new_static
+        #static=parse_with_static_repeats(data)
+        static=basic_len3_parser(data)
     else:
         #static[0]=[p for p in data["points"] if(p[3]<0.01 and p[3]>-0.001)]
         static[0]=[p for p in data["points"] if(p[3]>0.95 and p[3]<1.05)]
@@ -294,21 +301,7 @@ def plot_activation_energy():
     static={}
     tempdata={}
     data["points"]=[p for p in data["points"]]
-    for p in data["points"]:
-            if(p[4] not in static):
-                static[p[4]]={}
-            if(p[0] not in static[p[4]]):
-                static[p[4]][p[0]]={"mob":[],"loc":[]}
-            static[p[4]][p[0]]["mob"].append(p[1])
-            static[p[4]][p[0]]["loc"].append(p[2])
-    new_static={}
-    for s in static:
-        new_static[s]=[]
-        for t in static[s]:
-            mob=static[s][t]["mob"]
-            loc=static[s][t]["loc"]
-            new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
-    static=new_static
+    static=basic_len3_parser(data)
     plotpoints=[]
     for s in static:
         slist=[p for p in static[s] if(not np.isnan(p[1]))]
@@ -329,22 +322,7 @@ def vis_static_max():
     f.close()
     static={}
     data["points"]=[p for p in data["points"]]
-    for p in data["points"]:
-            print(p)
-            if(p[4] not in static):
-                static[p[4]]={}
-            if(p[0] not in static[p[4]]):
-                static[p[4]][p[0]]={"mob":[],"loc":[]}
-            static[p[4]][p[0]]["mob"].append(p[1])
-            static[p[4]][p[0]]["loc"].append(p[2])
-    new_static={}
-    for s in static:
-        new_static[s]=[]
-        for t in static[s]:
-            mob=static[s][t]["mob"]
-            loc=static[s][t]["loc"]
-            new_static[s].append([t,sum(mob)/len(mob),sum(loc)/len(loc),s])
-    static=new_static
+    static=basic_len3_parser(data)
     maxpoints=[]
     for s in static:
         slist=[p for p in static[s] if(not np.isnan(p[1]))]
@@ -373,10 +351,10 @@ def vis_static_max():
     
 if __name__  == '__main__':
    #main()
-   vis()
-   plot_activation_energy()
-   vis_static_max()
+   #vis()
+   #plot_activation_energy()
+   #vis_static_max()
    #vis(do_static=False)
-   #test_calcs()
+   test_calcs()
    #gen_temp_dep_plot(useMPI=True)
    #gen_temp_dep_plot(useMPI=False)

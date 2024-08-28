@@ -2,7 +2,11 @@ from pydoc import describe
 import numpy as np
 import json
 from scipy import linalg
+import os
 #from tqdm.auto import tqdm
+
+
+
 
 class Molecules:
    def __init__(self, nmuc=None, coordmol=None, unitcell=None, 
@@ -90,7 +94,41 @@ class Molecules:
       #print("*"*25+"\n",self.sigma,"\n"+"*"*25+"\n")
       self.sigma_scalar=self.sigma[1]
       self.static_disorder_params=static_disorder_params
-
+      self.static_disorder_obj=[]
+      
+   def get_static(self,ham):
+       s0=self.static_disorder_params["abs"]
+       fn="static_"+str(s0)+'.json'
+       def read_static():
+           if(not os.path.isfile(fn)):
+               f=open(fn,"w+")
+               f.write(json.dumps([]))
+               f.close()
+           f=open(fn,"r")
+           data=json.loads(f.read())
+           f.close()
+           return data
+       
+       def write_static(data):
+           f=open(fn,"w+")
+           f.write(json.dumps(data))
+           f.close()
+       
+       if(self.static_disorder_obj==[]):
+           self.static_disorder_obj=read_static()
+       if(self.static_disorder_obj==[]):
+           disorder=[]
+           for i in range(ham.shape[0]):
+               disorder.append(np.random.uniform(-1*s0,s0))
+           self.static_disorder_obj=disorder
+           write_static(self.static_disorder_obj)
+       for i in range(ham.shape[0]):
+            ham[i][i]=self.static_disorder_obj[i]
+       return ham
+        
+          
+            
+           
    def get_interactions(self):
       """Calculate all the possible interactions in the supercell by translating the unit cell
       interactions and calculating the distance between molecules.
@@ -178,10 +216,12 @@ class Molecules:
       rnd_mm = np.tril(rnd_mm) + np.tril(rnd_mm, -1).T
 
       hamiltonian_mm = self.javg[transinter_mm] + self.sigma[transinter_mm] * rnd_mm
-      if(self.static_disorder_params["abs"]>0):
-          #print(self.sigma[transinter_mm],self.sigma_scalar,self.javg[0],self.static_disorder_params["rel%"])
-          hamiltonian_mm+= (self.sigma[transinter_mm]/self.sigma_scalar) * self.static_disorder_params["abs"]
-    
+      hamiltonian_mm=self.get_static(hamiltonian_mm)
+      #hamiltonian_mm= self.get_static_disorder(hamiltonian_mm,transinter_mm)
+      #for i in range(hamiltonian_mm.shape[0]):
+      #    hamiltonian_mm[i][i]=self.static_disorder_params["rand"]
+      #print(hamiltonian_mm,hamiltonian_mm.shape)
+      #raise Exception()
       return hamiltonian_mm
 
    def get_energies(self, nmol, transinter_mm):
