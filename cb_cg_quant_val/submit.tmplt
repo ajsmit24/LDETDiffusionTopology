@@ -1,0 +1,10 @@
+#!/bin/sh
+#SBATCH -p et2024
+#SBATCH --mem-per-cpu=2000
+#SBATCH -t 7000
+#SBATCH -n 100
+#SBATCH --output=%x.{n}.slurm
+#SBATCH --error=%x.{n}.err
+
+python pilot.py -n {n}
+
