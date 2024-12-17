@@ -1,5 +1,6 @@
 # pilot_mfpt_cgScaling.py
 import sys
+import argparse
 sys.path.insert(0, '../common/')
 sys.path.insert(0, '/home/ajs193/cable_bacteria/diffusion_topology/common/')
 import random
@@ -29,13 +30,23 @@ def run_single_job(params):
     steps = handler.do_one_round()
     return steps
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="MFPT Coarse-Graining Scaling Simulation")
+    parser.add_argument("-n", type=int, required=True, help="Value for j_inter_nodes")
+    parser.add_argument("--njunctions", type=int, default=100, help="Number of junctions")
+    parser.add_argument("--max_steps", type=int, default=int(1e20), help="Maximum steps for each run")
+    return parser.parse_args()
+
 def main():
-    # Fixed parameters
-    num_junctions = 100
-    max_steps = int(1e20)
-    cg_scales = range(1, 251, 25)  # Coarse-graining scales (j_inter_nodes)
-    log_file = "cg_scaling_mfpt_results.log"
-    conv_log_file = "cg_convergence_log.json"  # Convergence log file
+    # Parse command line arguments
+    args = parse_arguments()
+    cg_scale = args.n
+    num_junctions = args.njunctions
+    max_steps = args.max_steps
+
+    # File names
+    log_file = f"cg_scaling_mfpt_results_{cg_scale}.log"
+    conv_log_file = f"cg_convergence_log_{cg_scale}.json"  # Convergence log file
 
     # Initialize result writer and logger
     result_writer = utils.ResultWriter(log_file, frequency=1)
@@ -45,53 +56,45 @@ def main():
     conv_checker = convcrit.Rolling_Av_Conv(property_key=["mfpt"], threshold_limit=0.05, usefile=False)
 
     # Results storage
-    results = {}
+    mfpt_values = []
+    is_converged = False
+    repeat_count = 0
+    c = 0
 
     # Detect CPU count
     num_cpus = detect_cpus()
     print(f"Running with {num_cpus} parallel workers")
 
-    # Loop through different coarse-graining scales
-    for cg_scale in cg_scales:
-        print(f"Running MFPT calculations for j_inter_nodes={cg_scale}...")
-        mfpt_values = []
-        is_converged = False
-        repeat_count = 0
-        c = 0
+    print(f"Running MFPT calculations for j_inter_nodes={cg_scale}...")
 
-        # Multiprocessing pool for parallel execution
-        with Pool(num_cpus) as pool:
-            while not is_converged:
-                params = [(cg_scale, num_junctions, max_steps, log_file, c + i) for i in range(num_cpus)]
-                c += len(params)
-                steps_list = pool.map(run_single_job, params)
-                print(steps_list)
-                mfpt_values.extend(steps_list)
-                repeat_count += len(steps_list)
+    # Multiprocessing pool for parallel execution
+    with Pool(num_cpus) as pool:
+        while not is_converged:
+            params = [(cg_scale, num_junctions, max_steps, log_file, c + i) for i in range(num_cpus)]
+            c += len(params)
+            steps_list = pool.map(run_single_job, params)
+            print(steps_list)
+            mfpt_values.extend(steps_list)
+            repeat_count += len(steps_list)
 
-                # Check convergence using rolling average
-                data = [{"mfpt": step} for step in steps_list]
-                is_converged, conv_data = conv_checker.check_conv(data, verbose=True)
+            # Check convergence using rolling average
+            data = [{"mfpt": step} for step in steps_list]
+            is_converged, conv_data = conv_checker.check_conv(data, verbose=True)
 
-                # Log verbose output to file
-                convergence_logger.log(json.dumps({
-                    "cg_scale": cg_scale,
-                    "run_count": c,
-                    "convergence_data": conv_data
-                }))
-
-        # Store results for the current scale
-        avg_mfpt = sum(mfpt_values) / len(mfpt_values)
-        results[cg_scale] = avg_mfpt
-        print(f"j_inter_nodes={cg_scale}: MFPT={avg_mfpt}, Repeats={repeat_count}")
+            # Log verbose output to file
+            convergence_logger.log(json.dumps({
+                "cg_scale": cg_scale,
+                "run_count": c,
+                "convergence_data": conv_data
+            }))
 
     # Final output of results
-    print("\nFinal Results: Coarse-Graining Scaling Test")
-    for scale, mfpt in results.items():
-        print(f"j_inter_nodes={scale}, Mean First Passage Time={mfpt}")
+    avg_mfpt = sum(mfpt_values) / len(mfpt_values)
+    print(f"\nFinal Results for j_inter_nodes={cg_scale}:")
+    print(f"Mean First Passage Time={avg_mfpt}, Total Runs={repeat_count}")
 
     # Write to log file
-    result_writer.write({"cg_scaling_results": results}, force=True)
+    result_writer.write({"cg_scale": cg_scale, "mean_mfpt": avg_mfpt, "total_runs": repeat_count}, force=True)
 
 if __name__ == "__main__":
     main()
