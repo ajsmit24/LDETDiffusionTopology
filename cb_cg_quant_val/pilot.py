@@ -8,7 +8,7 @@ import CB_lattice_walker as cbw
 import convergence_criteria as convcrit
 from multiprocessing import Pool, cpu_count
 import os
-
+import json
 
 def detect_cpus():
     # Detect number of CPUs from SLURM environment or default to all cores
@@ -35,9 +35,11 @@ def main():
     max_steps = int(1e20)
     cg_scales = range(1, 251, 25)  # Coarse-graining scales (j_inter_nodes)
     log_file = "cg_scaling_mfpt_results.log"
+    conv_log_file = "cg_convergence_log.json"  # Convergence log file
 
-    # Initialize result writer
+    # Initialize result writer and logger
     result_writer = utils.ResultWriter(log_file, frequency=1)
+    convergence_logger = utils.mlogger(conv_log_file)
 
     # Rolling average convergence criteria setup
     conv_checker = convcrit.Rolling_Av_Conv(property_key=["mfpt"], threshold_limit=0.05, usefile=False)
@@ -47,7 +49,6 @@ def main():
 
     # Detect CPU count
     num_cpus = detect_cpus()
-    #num_cpus=2
     print(f"Running with {num_cpus} parallel workers")
 
     # Loop through different coarse-graining scales
@@ -56,20 +57,28 @@ def main():
         mfpt_values = []
         is_converged = False
         repeat_count = 0
-        c=0
+        c = 0
+
         # Multiprocessing pool for parallel execution
         with Pool(num_cpus) as pool:
             while not is_converged:
-                params = [(cg_scale, num_junctions, max_steps, log_file,c+i) for i in range(num_cpus)]
-                c+=len(params)
+                params = [(cg_scale, num_junctions, max_steps, log_file, c + i) for i in range(num_cpus)]
+                c += len(params)
                 steps_list = pool.map(run_single_job, params)
                 print(steps_list)
                 mfpt_values.extend(steps_list)
                 repeat_count += len(steps_list)
 
                 # Check convergence using rolling average
-                data=[{"mfpt": step} for step in steps_list]
+                data = [{"mfpt": step} for step in steps_list]
                 is_converged, conv_data = conv_checker.check_conv(data, verbose=True)
+
+                # Log verbose output to file
+                convergence_logger.log(json.dumps({
+                    "cg_scale": cg_scale,
+                    "run_count": c,
+                    "convergence_data": conv_data
+                }))
 
         # Store results for the current scale
         avg_mfpt = sum(mfpt_values) / len(mfpt_values)

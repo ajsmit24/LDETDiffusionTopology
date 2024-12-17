@@ -79,5 +79,8 @@ class mlogger():
                         f.close()
         def log(self,s):
                 f=open(self.fn,"a")
-                f.write(json.dumps(s)+"\n")
+                if(type(s)!=str):
+                    f.write(json.dumps(s)+"\n")
+                else:
+                    f.write(s+"\n")
                 f.close()
