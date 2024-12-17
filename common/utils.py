@@ -38,6 +38,10 @@ class ResultWriter():
         self.count=0
         self.force_only=force_only
         self.mute=mute
+    def hard_reset(self):
+        f=open(self.logfile,"w+")
+        f.write("")
+        f.close()
     def write(self,result,systparams=[],force=False):
         if(self.mute):
             return
@@ -53,6 +57,7 @@ class ResultWriter():
         f=open(self.logfile,"a")
         f.write(json.dumps(result)+"\n")
         f.close()
+        self.count+=1
 
 
 
