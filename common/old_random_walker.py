@@ -17,7 +17,7 @@ import random
 random.seed(0)
    
 class RandomWalker():
-    def __init__(self,graph,max_steps=100000,endnode="G",particle_initial_pos=None):
+    def __init__(self,graph,max_steps=100000,endnode="G",particle_initial_pos=None,CG_version="v2"):
         self.graph=graph
         self.particle_location=particle_initial_pos
         self.max_steps=int(max_steps)
@@ -40,8 +40,13 @@ class RandomWalker():
     def run_random_walk(self):
         for i in range(self.max_steps):
             self.step()
-            if(self.particle_location==self.endnode):
-                return
+            if(self.CG_version=="v2"):
+                if("special" in self.graph.nodes[self.particle_location] and
+                   self.graph.nodes[self.particle_location]["special"]=="end"):
+                    return 
+            else:
+                if(self.particle_location==self.endnode):
+                    return
         print("PASSED MAX STEPS")
     
     def print_outcome(self):
