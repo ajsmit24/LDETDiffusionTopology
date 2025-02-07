@@ -12,7 +12,6 @@ import time
 import argparse
 import platform
 import sys
-import os
 
 #custom import of my own code
 import oop_cablebacteria_constructor
@@ -182,6 +181,7 @@ class GraphPreprocess():
                               graph.nodes[n]["special"]=="start")]
             particle_position=random.sample(posible_nodes,1)[0]
             graph.nodes[particle_position]["occ"]=1
+            self.particle_position=particle_position
             return particle_position
         if(self.random_particle_init):
             posible_nodes=[n for n in graph.nodes]
@@ -189,6 +189,7 @@ class GraphPreprocess():
             graph.nodes[particle_position]["occ"]=1
         else:
             graph.nodes[particle_position]["occ"]=1
+        self.particle_position=particle_position
         return particle_position
     
     def CG_v2_trim_ends(self,graph,startnode=1,endnode="G"):
@@ -226,11 +227,15 @@ class Handler():
         self.CG_version=CG_version
     
     def do_one_round(self,bridged=True):
-        cb=oop_cablebacteria_constructor.CableBacteria(self.nfiber,self.njuctions,bridged=bridged,CG_version=CG_version)
+        cb=oop_cablebacteria_constructor.CableBacteria(self.nfiber,self.njuctions,
+                                                       bridged=bridged,CG_version=self.CG_version)
         cb.to_graph()
-        gp=GraphPreprocess(self.nfiber,self.njuctions,j_inter_nodes=self.j_inter_nodes,length_radius_ratio=self.length_radius_ratio,CG_version=CG_version)
+        gp=GraphPreprocess(self.nfiber,self.njuctions,
+                           j_inter_nodes=self.j_inter_nodes,
+                           length_radius_ratio=self.length_radius_ratio,CG_version=self.CG_version)
         gp.do_setup(cb.graph,TrueOneDim=not bridged)
-        rw=old_random_walker.RandomWalker(cb.graph,max_steps=self.max_steps,particle_initial_pos=self.particle_initial_pos)
+        rw=old_random_walker.RandomWalker(cb.graph,max_steps=self.max_steps,
+                                          particle_initial_pos=gp.particle_position)
         rw.run_random_walk()
         return rw.total_steps
         
