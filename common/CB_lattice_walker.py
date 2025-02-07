@@ -12,7 +12,6 @@ import time
 import argparse
 import platform
 import sys
-import pickle
 import os
 
 #custom import of my own code
@@ -29,19 +28,20 @@ log=mylogger.log
 class GraphPreprocess():
     #j_inter_nodes is the number of nodes to insert between two junctions in the minimal topology
     ##model (the circuits based graphs) this defines the CG scale
-    def __init__(self,nfiber,njunctions,random_particle_init=False,j_inter_nodes=1,allow_warnings=True,length_radius_ratio=2):
+    def __init__(self,nfiber,njunctions,random_particle_init=False,
+                 j_inter_nodes=1,allow_warnings=True,CG_version="v1",length_radius_ratio=2):
         self.nfiber=nfiber
         self.njunctions=njunctions
         self.random_particle_init=random_particle_init
         self.j_inter_nodes=j_inter_nodes
         self.allow_warnings=allow_warnings
-        
+        self.length_radius_ratio=length_radius_ratio
         self.all_junction_related_nodes=[]
         self.fibers=None
         self.juncts=None
-        self.length_radius_ratio=length_radius_ratio
+        
         self.recursion_limit_updated=False
-        self.c=0
+        self.CG_version=CG_version
         if(self.nfiber==3):
             raise Exception("Can not conclusively determine junction nodes when nfiber=3")
             
@@ -83,10 +83,6 @@ class GraphPreprocess():
                 self.all_junction_related_nodes.append(new_node_number)
             #update what the "previous" node was
             starting=new_node_number
-        pfn='g_editing'+str(self.c)+'_s'+str(start_node)+"_e"+str(stop_node)+'.gpickle'
-        if( not os.path.exists(pfn) ):
-         pickle.dump(graph, open(pfn, 'wb'))
-        self.c+=1
 
     def find_junction_nodes(self,graph):
         juncts=[]
@@ -106,12 +102,17 @@ class GraphPreprocess():
     ##It should generally be called from find_fibers
     #d is the current recursion depth which is usefull for debugging
     def __fiber_find_helper(self,nextnode,prev,graph,endnode="G",d=0):
+        def isendnode(i):
+            if(self.CG_version=="v2"):
+                return "special" in graph.nodes[i] and graph.nodes[i]["special"]=="end"
+            if(self.CG_version=="v1"):
+                return i==endnode
         #this method is recursive and is can recure very deeply - often beyond the
         ## system limit - so we need to update it (but only at the top level call)
         if(d==0 and not self.recursion_limit_updated):
             self.update_recursion_limit()
         #this is the basecase as it is the end of the fiber and recursion used list concatination
-        if(nextnode==endnode):
+        if(isendnode(nextnode)):
             return []
         else:
             for n in graph.neighbors(nextnode):
@@ -133,8 +134,12 @@ class GraphPreprocess():
            return self.fibers
         #find all junctions except start and end
         self.all_junction_related_nodes=[jn for jn in self.all_junction_related_nodes if(jn!="G" and jn!=1)]
-        #start looking for fibers allong eahc of the spokes of the first junction
-        fibers=[[n] for n in graph.neighbors(1) if (n!='G' and n!=0)]
+        #start looking for fibers allong each of the spokes of the first junction
+        fibers=[]
+        if(self.CG_version=="v2"):
+            fibers=[[n] for n in graph.nodes if ("special" in graph.nodes[n] and graph.nodes[n]["special"]=="start")]
+        else:
+            fibers=[[n] for n in graph.neighbors(1) if (n!='G' and n!=0)]
         for i in range(len(fibers)):
             fibers[i]+=self.__fiber_find_helper(fibers[i][0],1,graph)
         self.fibers=fibers
@@ -157,7 +162,7 @@ class GraphPreprocess():
     
     def add_between_nodes(self,graph):
         juncts=json.loads(json.dumps(self.find_junction_nodes(graph)))
-        
+        fibers=self.find_fibers(graph,juncts)
         for jn in juncts:
             jneighs=[n for n in graph.neighbors(jn)]
             for fn in jneighs:
@@ -165,13 +170,19 @@ class GraphPreprocess():
                 if(jn==1 or jn=="G"):
                     mode="none"
                 self.insert_n_nodes(graph,jn,fn,self.j_inter_nodes,mode=mode)
-        fibers=self.find_fibers(graph,juncts)
         for fiber in fibers:
             for i in range(1,len(fiber)):
                 #self.insert_n_nodes(graph,fiber[i-1],fiber[i],2*(self.j_inter_nodes+1)-1)
                 self.insert_n_nodes(graph,fiber[i-1],fiber[i],self.length_radius_ratio*(self.j_inter_nodes+1)-1)
         
     def insert_particle(self,graph,particle_position=1):
+        if(self.CG_version=="v2"):
+            posible_nodes=[n for n in graph.nodes 
+                           if("special" in graph.nodes[n] and
+                              graph.nodes[n]["special"]=="start")]
+            particle_position=random.sample(posible_nodes,1)[0]
+            graph.nodes[particle_position]["occ"]=1
+            return particle_position
         if(self.random_particle_init):
             posible_nodes=[n for n in graph.nodes]
             particle_position=random.sample(posible_nodes,1)[0]
@@ -180,8 +191,21 @@ class GraphPreprocess():
             graph.nodes[particle_position]["occ"]=1
         return particle_position
     
-    def do_setup(self,graph,TrueOneDim=True):
+    def CG_v2_trim_ends(self,graph,startnode=1,endnode="G"):
+        if(self.CG_version!="v2"):
+            raise Exception("ERROR: mixing CG versions")
+        for n in graph.neighbors(startnode):
+            graph.nodes[n]["special"]="start"
+        for n in graph.neighbors(endnode):
+            graph.nodes[n]["special"]="end"
+        graph.remove_node(startnode)
+        graph.remove_node(endnode)
+        
+    
+    def do_setup(self,graph,TrueOneDim=False):
         self.remove_connector(graph)
+        if(self.CG_version=="v2"):
+            self.CG_v2_trim_ends(graph)
         if(TrueOneDim):
             self.delete_other_fibers(graph)
         self.add_between_nodes(graph)
@@ -189,7 +213,7 @@ class GraphPreprocess():
             
    
 class Handler():
-    def __init__(self,nfiber,njuctions,numb_repeats,writer,max_steps=1e6,particle_initial_pos=1,savepath=False,j_inter_nodes=1,length_radius_ratio=2):
+    def __init__(self,nfiber,njuctions,numb_repeats,writer,max_steps=1e6,particle_initial_pos=1,savepath=False,j_inter_nodes=1,length_radius_ratio=2,CG_version="v2"):
         self.nfiber=nfiber
         self.njuctions=njuctions
         self.max_steps=max_steps
@@ -199,15 +223,13 @@ class Handler():
         self.writer=writer
         self.j_inter_nodes=j_inter_nodes
         self.length_radius_ratio=length_radius_ratio
+        self.CG_version=CG_version
     
     def do_one_round(self,bridged=True):
-        cb=oop_cablebacteria_constructor.CableBacteria(self.nfiber,self.njuctions,bridged=bridged)
+        cb=oop_cablebacteria_constructor.CableBacteria(self.nfiber,self.njuctions,bridged=bridged,CG_version=CG_version)
         cb.to_graph()
-        pickle.dump(cb.graph, open('graph_unpro.gpickle', 'wb'))
-        gp=GraphPreprocess(self.nfiber,self.njuctions,j_inter_nodes=self.j_inter_nodes,length_radius_ratio=self.length_radius_ratio)
-        gp.do_setup(cb.graph)
-        pickle.dump(cb.graph, open('graph_postpro.gpickle', 'wb'))
-        print("PKLD")
+        gp=GraphPreprocess(self.nfiber,self.njuctions,j_inter_nodes=self.j_inter_nodes,length_radius_ratio=self.length_radius_ratio,CG_version=CG_version)
+        gp.do_setup(cb.graph,TrueOneDim=not bridged)
         rw=old_random_walker.RandomWalker(cb.graph,max_steps=self.max_steps,particle_initial_pos=self.particle_initial_pos)
         rw.run_random_walk()
         return rw.total_steps

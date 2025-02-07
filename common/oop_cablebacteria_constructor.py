@@ -149,7 +149,7 @@ class Junction():
 #must call to_graph() to get networkx representation
 class CableBacteria():
     
-    def __init__(self,nfibers,mjunctions,bridged=True):
+    def __init__(self,nfibers,mjunctions,bridged=True,CG_version="v1"):
         """
         Constructor for CableBacteria object
         Also generates the CB in object form
@@ -173,8 +173,15 @@ class CableBacteria():
         """
         #save inputs
         self.nfibers=nfibers
-        self.mjunctions=mjunctions
+        #in the new way of thinking about CB diffusion
+        #the ends should be represented by junctions
+        #the handler for the random walk will trim the ends
+        scaling=0
+        if(CG_version=="v2"):
+            scaling=2
+        self.mjunctions=mjunctions+scaling
         self.bridged=bridged
+        self.CG_version=CG_version
         
         #initialize book keeping
         self.junction_count=0
@@ -186,7 +193,7 @@ class CableBacteria():
         self.tail_node=CBNode(-1,-1,nodeType="tail")
         
         #add junctions including attaching to head
-        for i in range(mjunctions):
+        for i in range(self.mjunctions):
             self.addjunct()
         #attach last junction to tail
         self.close_cable()

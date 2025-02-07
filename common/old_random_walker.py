@@ -17,13 +17,13 @@ import random
 random.seed(0)
    
 class RandomWalker():
-    def __init__(self,graph,max_steps=100000,endnode="G",particle_initial_pos=None,use_near_end_nodes=True):
+    def __init__(self,graph,max_steps=100000,endnode="G",particle_initial_pos=None,CG_version="v2"):
         self.graph=graph
         self.particle_location=particle_initial_pos
         self.max_steps=int(max_steps)
         self.endnode=endnode
         self.total_steps=0
-        self.use_near_end_nodes=use_near_end_nodes
+        self.CG_version=CG_version
         if(particle_initial_pos==None):
             self.particle_location=self.find_initial_particle
         
@@ -41,11 +41,13 @@ class RandomWalker():
     def run_random_walk(self):
         for i in range(self.max_steps):
             self.step()
-            if(self.particle_location==self.endnode):
-                return
-            if(self.use_near_end_nodes):
-                if(self.endnode in [n for n in self.graph.neighbors(self.particle_location)]):
-                   return
+            if(self.CG_version=="v2"):
+                if("special" in self.graph.nodes[self.particle_location] and
+                   self.graph.nodes[self.particle_location]["special"]=="end"):
+                    return 
+            else:
+                if(self.particle_location==self.endnode):
+                    return
         print("PASSED MAX STEPS")
     
     def print_outcome(self):
