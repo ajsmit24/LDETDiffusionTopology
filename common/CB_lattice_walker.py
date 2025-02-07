@@ -12,6 +12,8 @@ import time
 import argparse
 import platform
 import sys
+import pickle
+import os
 
 #custom import of my own code
 import oop_cablebacteria_constructor
@@ -27,7 +29,7 @@ log=mylogger.log
 class GraphPreprocess():
     #j_inter_nodes is the number of nodes to insert between two junctions in the minimal topology
     ##model (the circuits based graphs) this defines the CG scale
-    def __init__(self,nfiber,njunctions,random_particle_init=False,j_inter_nodes=1,allow_warnings=True):
+    def __init__(self,nfiber,njunctions,random_particle_init=False,j_inter_nodes=1,allow_warnings=True,length_radius_ratio=2):
         self.nfiber=nfiber
         self.njunctions=njunctions
         self.random_particle_init=random_particle_init
@@ -37,7 +39,9 @@ class GraphPreprocess():
         self.all_junction_related_nodes=[]
         self.fibers=None
         self.juncts=None
+        self.length_radius_ratio=length_radius_ratio
         self.recursion_limit_updated=False
+        self.c=0
         if(self.nfiber==3):
             raise Exception("Can not conclusively determine junction nodes when nfiber=3")
             
@@ -79,6 +83,10 @@ class GraphPreprocess():
                 self.all_junction_related_nodes.append(new_node_number)
             #update what the "previous" node was
             starting=new_node_number
+        pfn='g_editing'+str(self.c)+'_s'+str(start_node)+"_e"+str(stop_node)+'.gpickle'
+        if( not os.path.exists(pfn) ):
+         pickle.dump(graph, open(pfn, 'wb'))
+        self.c+=1
 
     def find_junction_nodes(self,graph):
         juncts=[]
@@ -160,7 +168,8 @@ class GraphPreprocess():
         fibers=self.find_fibers(graph,juncts)
         for fiber in fibers:
             for i in range(1,len(fiber)):
-                self.insert_n_nodes(graph,fiber[i-1],fiber[i],2*(self.j_inter_nodes+1)-1)
+                #self.insert_n_nodes(graph,fiber[i-1],fiber[i],2*(self.j_inter_nodes+1)-1)
+                self.insert_n_nodes(graph,fiber[i-1],fiber[i],self.length_radius_ratio*(self.j_inter_nodes+1)-1)
         
     def insert_particle(self,graph,particle_position=1):
         if(self.random_particle_init):
@@ -180,7 +189,7 @@ class GraphPreprocess():
             
    
 class Handler():
-    def __init__(self,nfiber,njuctions,numb_repeats,writer,max_steps=1e6,particle_initial_pos=1,savepath=False,j_inter_nodes=1):
+    def __init__(self,nfiber,njuctions,numb_repeats,writer,max_steps=1e6,particle_initial_pos=1,savepath=False,j_inter_nodes=1,length_radius_ratio=2):
         self.nfiber=nfiber
         self.njuctions=njuctions
         self.max_steps=max_steps
@@ -189,12 +198,16 @@ class Handler():
         self.lin_path_len=2*self.njuctions-1+4
         self.writer=writer
         self.j_inter_nodes=j_inter_nodes
+        self.length_radius_ratio=length_radius_ratio
     
     def do_one_round(self,bridged=True):
         cb=oop_cablebacteria_constructor.CableBacteria(self.nfiber,self.njuctions,bridged=bridged)
         cb.to_graph()
-        gp=GraphPreprocess(self.nfiber,self.njuctions,j_inter_nodes=self.j_inter_nodes)
+        pickle.dump(cb.graph, open('graph_unpro.gpickle', 'wb'))
+        gp=GraphPreprocess(self.nfiber,self.njuctions,j_inter_nodes=self.j_inter_nodes,length_radius_ratio=self.length_radius_ratio)
         gp.do_setup(cb.graph)
+        pickle.dump(cb.graph, open('graph_postpro.gpickle', 'wb'))
+        print("PKLD")
         rw=old_random_walker.RandomWalker(cb.graph,max_steps=self.max_steps,particle_initial_pos=self.particle_initial_pos)
         rw.run_random_walk()
         return rw.total_steps
