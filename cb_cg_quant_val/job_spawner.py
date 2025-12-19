@@ -46,12 +46,14 @@ def submit_slurm_job(script_path):
         script_path (str): Path to the SLURM script to be submitted.
     """
     try:
-        result = subprocess.run(["sbatch", script_path], check=True, capture_output=True, text=True)
-        print(f"Submitted job: {script_path}")
-        print("Standard Output:")
-        print(result.stdout)
-        print("Standard Error:")
-        print(result.stderr)
+        print(script_path)
+        result = subprocess.check_output("sbatch " + script_path, shell=True).decode("utf-8")
+        print(result)
+        #print(f"Submitted job: {script_path}")
+        #print("Standard Output:")
+        #print(result.stdout)
+        #print("Standard Error:")
+        #print(result.stderr)
     except subprocess.CalledProcessError as e:
         print(f"Failed to submit job {script_path}: {e}")
         print("Error Output:")
@@ -62,7 +64,7 @@ def main():
     template_file = "submit.tmplt"
 
     # Directory to store generated SLURM scripts
-    output_dir = ""
+    output_dir = "."
 
     # Values of n to run the jobs for
     n_values = [1, 10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250]

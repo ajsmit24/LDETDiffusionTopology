@@ -7,7 +7,7 @@ Created on Fri Apr 12 09:50:41 2024
 
 import json
 import sys
-
+import math
 import numpy as np
 
 from welford import Welford
@@ -33,7 +33,7 @@ class Rolling_Av_Conv():
         self.threshold_limit=threshold_limit
         self.property_key=property_key
         self.usefile=usefile
-        
+       
         if(self.threshold_type!="relative_std"):
             raise Exception("ERROR:threshold_types!=relative_std has not been implemented. Specified value:"+self.threshold_type)
         self.running_stats={}
@@ -41,6 +41,7 @@ class Rolling_Av_Conv():
         for k in self.property_key:
             self.running_stats[k]=Welford()
             self.running_stats[Rolling_Av_Conv.mean_str(k)]=Welford()
+         
             
     def check_conv(self,data,verbose=True):
         for i in range(len(data)):
@@ -63,10 +64,12 @@ class Rolling_Av_Conv():
             rel_stds={}
             is_all_conv=True
             for k in self.mean_props:
-             means[k]=self.running_stats[k].mean.item()
-             abs_std[k]=self.running_stats[k].var_s.item()
-             rel_stds[k]=abs_std[k]/means[k]
-             is_all_conv=is_all_conv and rel_stds[k]<self.threshold_limit
+            #for k in self.property_keys:
+              means[k]=self.running_stats[k].mean.item()
+              abs_std[k]=math.sqrt(self.running_stats[k].var_s.item())
+              #abs_std=self.running_stats[Rolling_Av_Conv.mean_str(k)]
+              rel_stds[k]=abs_std[k]/means[k]
+              is_all_conv=is_all_conv and rel_stds[k]<self.threshold_limit
             if(not verbose):
                 return is_all_conv
             else:

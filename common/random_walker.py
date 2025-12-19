@@ -244,6 +244,7 @@ class RandomWalker():
     
     def run_conv_checker(self):
         should_exit=False
+        #print(self.endcriteria,self.particle_location,self.endnode)
         if("single_node_boundary" in self.endcriteria):
             if(self.particle_location==self.endnode):
                 should_exit=True

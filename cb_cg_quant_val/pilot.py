@@ -20,7 +20,7 @@ def run_single_job(params):
     result_writer = utils.ResultWriter(log_file, frequency=1)
     random.seed(r)
     handler = cbw.Handler(
-        nfiber=25,  # Fixed as 2 fibers for this test
+        nfiber=10,
         njuctions=num_junctions,
         numb_repeats=1,  # Single repeat per iteration
         writer=result_writer,
@@ -33,7 +33,7 @@ def run_single_job(params):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="MFPT Coarse-Graining Scaling Simulation")
     parser.add_argument("-n", type=int, required=True, help="Value for j_inter_nodes")
-    parser.add_argument("--njunctions", type=int, default=100, help="Number of junctions")
+    parser.add_argument("--njunctions", type=int, default=50, help="Number of junctions")
     parser.add_argument("--max_steps", type=int, default=int(1e20), help="Maximum steps for each run")
     return parser.parse_args()
 

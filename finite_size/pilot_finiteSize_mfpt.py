@@ -93,7 +93,7 @@ def run_dim_batch(dim,job_options,batchnumber=1,lastjobid=0):
         lastjobid+=1
     return joblist,lastjobid
 
-def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,write_freq=25,useMPI=True):
+def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,peroidic_unit_size,write_freq=25,useMPI=False,d3AutoTrans=True):
     global output_files
     job_options={
         "calcs_per_batch":calcs_per_batch,
@@ -103,15 +103,30 @@ def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,pero
         "x_cut":x_cut,
         "fdl":finite_dim_len
         }
-    lastrunid={highest_dimension:0,highest_dimension-1:0}
+    #dimension offset used to transition between dimensions 
+    dofset=1
+    #previous system dident allow for jumps of more than 1 dimensions ie 3D to 1D
+    #so it used for loops with a counter subtracted off from the highest dim
+    #here we supply those subractive values manually
+    dims_pos_subtractive=[0,1]
+    #incase of dimension 3 and this transition parameter
+    #instead of comparing the highest and highets-dofset(1) 
+    #dimensions, compare 3 and 1
+    #this is the CB relivant comparison
+    if(d3AutoTrans and highest_dimension==3):
+       dofset=2
+       dims_pos_subtractive=[0,2]
+
+    lastrunid={highest_dimension:0,highest_dimension-dofset:0}
     is_total_conv=False
     total_conv_checker={highest_dimension:convcrit.Rolling_Av_Conv(["mft"],usefile=False),
-                        highest_dimension-1:convcrit.Rolling_Av_Conv(["mft"],usefile=False)}
+                        highest_dimension-dofset:convcrit.Rolling_Av_Conv(["mft"],usefile=False)}
     loop_count=0
-    conv_by_dim={highest_dimension:False,highest_dimension-1:False}
+    conv_by_dim={highest_dimension:False,highest_dimension-dofset:False}
+    prev_data={"relstd":{highest_dimension:1e99,highest_dimension-dofset:1e99},"conv":{highest_dimension:False,highest_dimension-dofset:False}}
     while(not is_total_conv):
         mpi_job_list=[]
-        for i in range(2):
+        for i in dims_pos_subtractive:
             if(not conv_by_dim[highest_dimension-i]):
                 jlist,lastid=run_dim_batch(highest_dimension-i,job_options,batchnumber=loop_count,lastjobid=lastrunid[highest_dimension-i])
                 mpi_job_list+=jlist
@@ -124,13 +139,19 @@ def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,pero
         else:
             for jp in mpi_job_list:
                 result.append(single_first_passage_calc(jp))
-        cleaned_res={highest_dimension:[],highest_dimension-1:[]}
+        cleaned_res={highest_dimension:[],highest_dimension-dofset:[]}
         for res in result:
             cleaned_res[res["dim"]].append(res)
         temp_cov=True
         rel_std_list={}
-        for i in range(2):
-            conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(cleaned_res[highest_dimension-i])
+        for i in dims_pos_subtractive:
+            if(len(cleaned_res[highest_dimension-i])<1):
+                rel_stds=prev_data["relstd"][highest_dimension-i]
+                conv=prev_data["conv"][highest_dimension-i]
+            else:
+                conv,rel_stds=total_conv_checker[highest_dimension-i].check_conv(cleaned_res[highest_dimension-i])
+                prev_data["conv"][highest_dimension-i]=conv
+                prev_data["relstd"][highest_dimension-i]=rel_stds
             rel_std_list[highest_dimension-i]=rel_stds
             conv_by_dim[highest_dimension-i]=conv
             temp_cov=temp_cov and conv_by_dim[highest_dimension-i]
@@ -140,4 +161,4 @@ def run_job(job_name,finite_dim_len,x_cut,highest_dimension,calcs_per_batch,pero
         loop_count+=1
 
 if(__name__=="__main__"):                
-	run_job(jobstem,args.finite_dim_len,args.cutoff,args.dimension,3,args.num_points,useMPI=False)
+	run_job(jobstem,args.finite_dim_len,args.cutoff,args.dimension,3,args.num_points,useMPI=True)
